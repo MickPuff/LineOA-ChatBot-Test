@@ -59,6 +59,7 @@ test('lists conversation summaries newest first', async () => {
       lastRole: 'assistant',
       lastText: 'new reply',
       title: 'new chat',
+      aiEnabled: true,
     },
     {
       conversationId: 'user:old',
@@ -70,8 +71,29 @@ test('lists conversation summaries newest first', async () => {
       lastRole: 'user',
       lastText: 'old chat',
       title: 'old chat',
+      aiEnabled: true,
     },
   ]);
+});
+
+test('stores conversation AI settings', async () => {
+  const store = new MemoryConversationStore(4);
+
+  assert.deepEqual(await store.getConversationSettings('user:1'), { aiEnabled: true });
+
+  await store.updateConversationSettings('user:1', { aiEnabled: false });
+
+  assert.deepEqual(await store.getConversationSettings('user:1'), { aiEnabled: false });
+});
+
+test('stores bot settings', async () => {
+  const store = new MemoryConversationStore(4);
+
+  assert.deepEqual(await store.getBotSettings(), { systemInstruction: '' });
+
+  await store.updateBotSettings({ systemInstruction: 'Sell coffee.' });
+
+  assert.deepEqual(await store.getBotSettings(), { systemInstruction: 'Sell coffee.' });
 });
 
 test('clears a conversation', async () => {

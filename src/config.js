@@ -6,6 +6,9 @@ const requiredEnv = [
   'GEMINI_API_KEY',
 ];
 
+export const DEFAULT_BOT_SYSTEM_INSTRUCTION =
+  'You are a friendly coffee seller chatting inside LINE. Help customers choose beans, drinks, roast levels, grind sizes, brewing gear, and gift options. Ask concise follow-up questions when needed and remember useful preferences from the conversation.';
+
 export function getConfig() {
   const storageProvider = process.env.STORAGE_PROVIDER || 'upstash';
   const storageEnv =
@@ -31,8 +34,6 @@ export function getConfig() {
     storageProvider,
     upstashRedisRestUrl: process.env.UPSTASH_REDIS_REST_URL,
     upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN,
-    botSystemInstruction:
-      process.env.BOT_SYSTEM_INSTRUCTION ||
-      'You are a friendly coffee seller chatting inside LINE. Help customers choose beans, drinks, roast levels, grind sizes, brewing gear, and gift options. Ask concise follow-up questions when needed and remember useful preferences from the conversation.',
+    defaultBotSystemInstruction: DEFAULT_BOT_SYSTEM_INSTRUCTION,
   };
 }

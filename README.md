@@ -10,6 +10,8 @@ A small Node.js webhook service that connects a LINE Official Account to Gemini.
 - Stores full conversation logs in remote Upstash Redis
 - Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
 - Provides a password-protected admin page at `GET /admin`
+- Lets admins edit the bot system prompt from `/admin/settings`; the prompt is saved in Redis
+- Lets admins disable AI replies for individual LINE conversations
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -50,6 +52,14 @@ Use this path if you do not want the bot running on your machine.
    Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The default username is `admin`.
 
    If the browser keeps asking for credentials, confirm that `ADMIN_PASSWORD` is set in Render and that you are entering `admin` as the username unless you changed `ADMIN_USERNAME`.
+
+7. To customize the bot personality, open:
+
+   ```text
+   https://your-render-service.onrender.com/admin/settings
+   ```
+
+   Save the system prompt there. It is stored in Redis, so you do not need to edit Render environment variables for prompt changes.
 
 ### Local Development
 
@@ -115,7 +125,6 @@ Use this path if you do not want the bot running on your machine.
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |
 | `UPSTASH_REDIS_REST_URL` | Yes for Upstash | | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes for Upstash | | Upstash Redis REST token |
-| `BOT_SYSTEM_INSTRUCTION` | No | Friendly coffee seller | Bot personality/system prompt |
 
 ## Test
 
@@ -129,4 +138,6 @@ LINE requires an HTTPS webhook URL. Local development usually needs a tunnel suc
 
 If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot forgets context whenever the Node process restarts. Use Upstash for persistent non-local memory.
 
-The admin page reads conversation logs from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
+The admin page reads conversation logs and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
+
+AI can be disabled per customer from the inbox. When AI is disabled for a conversation, incoming LINE messages are still saved to Redis, but the server does not call Gemini or send an automatic reply.

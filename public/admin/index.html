@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=coffee-live">
+    <link rel="stylesheet" href="/admin/styles.css?v=coffee-settings">
   </head>
   <body>
     <div class="app-shell">
@@ -19,37 +19,41 @@
 
         <nav class="nav-section" aria-label="Workflows">
           <p class="nav-label">Workflow</p>
-          <button id="nav-inbox" class="nav-item active" type="button">
+          <a id="nav-inbox" class="nav-item active" href="/admin/inbox" data-page="inbox">
             <span class="nav-icon">M</span>
             <span>Inbox</span>
-          </button>
-          <button id="nav-test-bot" class="nav-item" type="button">
+          </a>
+          <button id="nav-test-bot" class="nav-item disabled" type="button" disabled>
             <span class="nav-icon">T</span>
             <span>Test Bot</span>
+            <small>Soon</small>
           </button>
         </nav>
 
         <nav class="nav-section" aria-label="Planning">
           <p class="nav-label">Growth</p>
-          <button id="nav-analytics" class="nav-item" type="button">
+          <button id="nav-analytics" class="nav-item disabled" type="button" disabled>
             <span class="nav-icon">A</span>
             <span>Sales Analytics</span>
+            <small>Soon</small>
           </button>
-          <button id="nav-repeat-buyers" class="nav-item" type="button">
+          <button id="nav-repeat-buyers" class="nav-item disabled" type="button" disabled>
             <span class="nav-icon">F</span>
             <span>Repeat Buyers</span>
+            <small>Soon</small>
           </button>
-          <button id="nav-customer-db" class="nav-item" type="button">
+          <button id="nav-customer-db" class="nav-item disabled" type="button" disabled>
             <span class="nav-icon">D</span>
             <span>Customer Database</span>
+            <small>Soon</small>
           </button>
         </nav>
 
         <footer class="nav-footer">
-          <button id="nav-settings" class="nav-item" type="button">
+          <a id="nav-settings" class="nav-item" href="/admin/settings" data-page="settings">
             <span class="nav-icon">C</span>
             <span>Settings</span>
-          </button>
+          </a>
           <div class="operator">
             <div class="operator-avatar">A</div>
             <div>
@@ -60,125 +64,176 @@
         </footer>
       </aside>
 
-      <section class="inbox-panel" aria-label="Conversation inbox">
-        <header class="inbox-heading">
-          <div>
-            <h2>Coffee Inbox</h2>
-            <p>Customer support - AI barista to admin handoff</p>
-          </div>
-          <span class="prototype-pill">PROTOTYPE</span>
-        </header>
-
-        <div class="queue-header">
-          <div>
-            <h3>Handled by AI</h3>
-            <span id="metric-conversations" class="count-pill">0 chats</span>
-          </div>
-        </div>
-
-        <div class="search-wrap">
-          <span aria-hidden="true">S</span>
-          <input id="search" type="search" placeholder="Search customers or coffee requests..." autocomplete="off">
-        </div>
-
-        <div class="queue-tabs" aria-label="Conversation filters">
-          <button class="active" type="button" data-filter="all">AI <span id="metric-messages">0</span></button>
-          <button type="button" data-filter="needs-admin">Admin <span id="metric-admin">0</span></button>
-          <button type="button" data-filter="follow-up">Follow-up <span id="metric-follow-up">0</span></button>
-        </div>
-
-        <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
-      </section>
-
-      <main class="chat-panel">
-        <header class="chat-topbar">
-          <div class="chat-person">
-            <div class="avatar large">?</div>
+      <div id="page-inbox" class="page page-inbox" data-page="inbox">
+        <section class="inbox-panel" aria-label="Conversation inbox">
+          <header class="inbox-heading">
             <div>
-              <h2 id="conversation-title">Select a customer</h2>
-              <p id="conversation-meta">No conversation selected</p>
+              <h2>Coffee Inbox</h2>
+              <p>Customer support - AI barista to admin handoff</p>
+            </div>
+            <span class="prototype-pill">PROTOTYPE</span>
+          </header>
+
+          <div class="queue-header">
+            <div>
+              <h3>Handled by AI</h3>
+              <span id="metric-conversations" class="count-pill">0 chats</span>
             </div>
           </div>
-          <div class="chat-status">
-            <span class="online-dot"></span>
-            <span>AI - Coffee Seller</span>
-          </div>
-        </header>
 
-        <section class="conversation-stage">
-          <div id="empty-state" class="empty-state">
-            <h3>Select a coffee chat</h3>
-            <p>Choose a conversation to view the full Redis transcript.</p>
+          <div class="search-wrap">
+            <span aria-hidden="true">S</span>
+            <input id="search" type="search" placeholder="Search customers or coffee requests..." autocomplete="off">
           </div>
-          <div id="messages" class="messages" aria-live="polite"></div>
+
+          <div class="queue-tabs" aria-label="Conversation filters">
+            <button class="active" type="button" data-filter="all">AI <span id="metric-messages">0</span></button>
+            <button type="button" data-filter="needs-admin">Admin <span id="metric-admin">0</span></button>
+            <button type="button" data-filter="follow-up">Follow-up <span id="metric-follow-up">0</span></button>
+          </div>
+
+          <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
         </section>
 
-        <footer class="reply-bar">
-          <input id="admin-reply-input" type="text" placeholder="Reply as admin to this LINE customer">
-          <button id="admin-reply-button" type="button" title="Send">&rarr;</button>
-        </footer>
+        <main class="chat-panel">
+          <header class="chat-topbar">
+            <div class="chat-person">
+              <div class="avatar large">?</div>
+              <div>
+                <h2 id="conversation-title">Select a customer</h2>
+                <p id="conversation-meta">No conversation selected</p>
+              </div>
+            </div>
+            <div class="chat-status">
+              <span class="online-dot"></span>
+              <span>AI - Coffee Seller</span>
+            </div>
+          </header>
+
+          <section class="conversation-stage">
+            <div id="empty-state" class="empty-state">
+              <h3>Select a coffee chat</h3>
+              <p>Choose a conversation to view the full Redis transcript.</p>
+            </div>
+            <div id="messages" class="messages" aria-live="polite"></div>
+          </section>
+
+          <footer class="reply-bar">
+            <input id="admin-reply-input" type="text" placeholder="Reply as admin to this LINE customer">
+            <button id="admin-reply-button" type="button" title="Send">&rarr;</button>
+          </footer>
+        </main>
+
+        <aside class="customer-panel" aria-label="Customer details">
+          <header class="account-switcher">
+            <div>
+              <strong>Roastline Coffee</strong>
+              <span>LINE Official</span>
+            </div>
+            <div class="account-avatar">C</div>
+          </header>
+
+          <section class="customer-card">
+            <div class="avatar profile">?</div>
+            <h2 id="detail-title">New Customer</h2>
+            <span class="tag">Coffee lead</span>
+            <label class="ai-toggle">
+              <input id="detail-ai-toggle" type="checkbox" disabled>
+              <span class="toggle-track" aria-hidden="true"></span>
+              <strong id="detail-ai-label">AI enabled</strong>
+            </label>
+          </section>
+
+          <section class="side-metrics">
+            <div>
+              <strong id="detail-count">-</strong>
+              <span>Total messages</span>
+            </div>
+            <div>
+              <strong id="detail-last-at">-</strong>
+              <span>Last chat</span>
+            </div>
+          </section>
+
+          <section class="detail-block">
+            <h3>Customer Info</h3>
+            <dl>
+              <div>
+                <dt>Source - LINE id</dt>
+                <dd id="detail-id">-</dd>
+              </div>
+              <div>
+                <dt>Customer messages</dt>
+                <dd id="detail-user-count">-</dd>
+              </div>
+              <div>
+                <dt>AI messages</dt>
+                <dd id="detail-assistant-count">-</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="note-card">
+            <div class="note-label">AI status is per customer</div>
+            <p>## Customer Summary</p>
+            <p>- Coffee buyer from LINE</p>
+            <p>- Full transcript stored in Redis</p>
+            <p>- Disable AI when admin should take over</p>
+          </section>
+
+          <div class="panel-actions">
+            <button id="copy-id-button" type="button" disabled>Copy ID</button>
+            <button id="export-button" type="button" disabled>Export JSON</button>
+          </div>
+        </aside>
+      </div>
+
+      <main id="page-settings" class="page page-settings" data-page="settings">
+        <header class="settings-header">
+          <div>
+            <h2>Bot Settings</h2>
+            <p>Runtime settings saved in Redis. No Render environment variable edit is needed.</p>
+          </div>
+          <span class="prototype-pill">REDIS SAVED</span>
+        </header>
+
+        <section class="settings-body">
+          <div class="settings-section">
+            <h3>System Prompt</h3>
+            <p>Control how the coffee seller replies to LINE customers.</p>
+            <textarea id="system-prompt-input" rows="10" maxlength="4000"></textarea>
+            <div class="settings-actions">
+              <button id="save-settings-button" type="button">Save prompt</button>
+              <button id="reset-prompt-button" type="button">Use default</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>Runtime</h3>
+            <dl class="settings-list">
+              <div>
+                <dt>Gemini model</dt>
+                <dd id="settings-model">-</dd>
+              </div>
+              <div>
+                <dt>Storage</dt>
+                <dd id="settings-storage">-</dd>
+              </div>
+              <div>
+                <dt>LLM context window</dt>
+                <dd id="settings-context">-</dd>
+              </div>
+              <div>
+                <dt>Webhook event receipt TTL</dt>
+                <dd id="settings-ttl">-</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
       </main>
-
-      <aside class="customer-panel" aria-label="Customer details">
-        <header class="account-switcher">
-          <div>
-            <strong>Roastline Coffee</strong>
-            <span>LINE Official</span>
-          </div>
-          <div class="account-avatar">C</div>
-        </header>
-
-        <section class="customer-card">
-          <div class="avatar profile">?</div>
-          <h2 id="detail-title">New Customer</h2>
-          <span class="tag">Coffee lead</span>
-        </section>
-
-        <section class="side-metrics">
-          <div>
-            <strong id="detail-count">-</strong>
-            <span>Total messages</span>
-          </div>
-          <div>
-            <strong id="detail-last-at">-</strong>
-            <span>Last chat</span>
-          </div>
-        </section>
-
-        <section class="detail-block">
-          <h3>Customer Info</h3>
-          <dl>
-            <div>
-              <dt>Source - LINE id</dt>
-              <dd id="detail-id">-</dd>
-            </div>
-            <div>
-              <dt>Customer messages</dt>
-              <dd id="detail-user-count">-</dd>
-            </div>
-            <div>
-              <dt>AI messages</dt>
-              <dd id="detail-assistant-count">-</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section class="note-card">
-          <div class="note-label">AI reads every chat</div>
-          <p>## Customer Summary</p>
-          <p>- Coffee buyer from LINE</p>
-          <p>- Full transcript stored in Redis</p>
-          <p>- Admin handoff can be added later</p>
-        </section>
-
-        <div class="panel-actions">
-          <button id="copy-id-button" type="button" disabled>Copy ID</button>
-          <button id="export-button" type="button" disabled>Export JSON</button>
-        </div>
-      </aside>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=coffee-live" type="module"></script>
+    <script src="/admin/app.js?v=coffee-settings" type="module"></script>
   </body>
 </html>

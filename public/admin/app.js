@@ -4,6 +4,8 @@ const state = {
   selectedConversationId: null,
   selectedMessages: [],
   activeFilter: 'all',
+  currentPage: getCurrentPage(),
+  settings: null,
   hasLoadedConversations: false,
   isLoadingConversations: false,
   seenUserMessageCounts: new Map(),
@@ -20,12 +22,15 @@ const elements = {
   title: document.querySelector('#conversation-title'),
   meta: document.querySelector('#conversation-meta'),
   filterButtons: [...document.querySelectorAll('.queue-tabs button[data-filter]')],
-  navButtons: [...document.querySelectorAll('.nav-item[type="button"]')],
+  navButtons: [...document.querySelectorAll('.nav-item')],
   adminReplyInput: document.querySelector('#admin-reply-input'),
   adminReplyButton: document.querySelector('#admin-reply-button'),
   copyIdButton: document.querySelector('#copy-id-button'),
   exportButton: document.querySelector('#export-button'),
+  detailAiToggle: document.querySelector('#detail-ai-toggle'),
+  detailAiLabel: document.querySelector('#detail-ai-label'),
   toast: document.querySelector('#toast'),
+  pages: [...document.querySelectorAll('.page[data-page]')],
   metricConversations: document.querySelector('#metric-conversations'),
   metricMessages: document.querySelector('#metric-messages'),
   metricAdmin: document.querySelector('#metric-admin'),
@@ -36,18 +41,19 @@ const elements = {
   detailUserCount: document.querySelector('#detail-user-count'),
   detailAssistantCount: document.querySelector('#detail-assistant-count'),
   detailLastAt: document.querySelector('#detail-last-at'),
+  systemPromptInput: document.querySelector('#system-prompt-input'),
+  saveSettingsButton: document.querySelector('#save-settings-button'),
+  resetPromptButton: document.querySelector('#reset-prompt-button'),
+  settingsModel: document.querySelector('#settings-model'),
+  settingsStorage: document.querySelector('#settings-storage'),
+  settingsContext: document.querySelector('#settings-context'),
+  settingsTtl: document.querySelector('#settings-ttl'),
 };
 
 elements.search.addEventListener('input', () => filterConversations());
 elements.filterButtons.forEach((button) => {
   button.addEventListener('click', () => setActiveFilter(button.dataset.filter));
 });
-document.querySelector('#nav-inbox')?.addEventListener('click', () => showInbox());
-document.querySelector('#nav-test-bot')?.addEventListener('click', () => showTestBotStatus());
-document.querySelector('#nav-analytics')?.addEventListener('click', () => showSalesAnalytics());
-document.querySelector('#nav-repeat-buyers')?.addEventListener('click', () => showRepeatBuyers());
-document.querySelector('#nav-customer-db')?.addEventListener('click', () => showCustomerDatabase());
-document.querySelector('#nav-settings')?.addEventListener('click', () => showSettings());
 elements.adminReplyButton.addEventListener('click', () => sendAdminReply());
 elements.adminReplyInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
@@ -57,10 +63,25 @@ elements.adminReplyInput.addEventListener('keydown', (event) => {
 });
 elements.copyIdButton.addEventListener('click', () => copySelectedConversationId());
 elements.exportButton.addEventListener('click', () => exportSelectedConversation());
+elements.detailAiToggle.addEventListener('change', () => {
+  if (state.selectedConversationId) {
+    updateConversationAi(state.selectedConversationId, elements.detailAiToggle.checked);
+  }
+});
+elements.saveSettingsButton.addEventListener('click', () => saveBotSettings());
+elements.resetPromptButton.addEventListener('click', () => useDefaultPrompt());
 
+renderCurrentPage();
 updateComposerState();
-loadConversations();
-window.setInterval(() => loadConversations({ silent: true }), AUTO_REFRESH_MS);
+
+if (state.currentPage === 'inbox') {
+  loadConversations();
+  window.setInterval(() => loadConversations({ silent: true }), AUTO_REFRESH_MS);
+}
+
+if (state.currentPage === 'settings') {
+  loadSettings();
+}
 
 async function loadConversations({ silent = false } = {}) {
   if (state.isLoadingConversations) {
@@ -175,8 +196,17 @@ function renderConversationList() {
     badge.className = `badge unread-badge${unreadCount > 0 ? ' has-unread' : ''}`;
     badge.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'Read';
 
+    const aiButton = document.createElement('button');
+    aiButton.type = 'button';
+    aiButton.className = `mini-toggle${conversation.aiEnabled === false ? ' is-off' : ''}`;
+    aiButton.textContent = conversation.aiEnabled === false ? 'AI off' : 'AI on';
+    aiButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      updateConversationAi(conversation.conversationId, conversation.aiEnabled === false);
+    });
+
     topRow.append(title, time);
-    tags.append(dot, badge);
+    tags.append(dot, badge, aiButton);
     body.append(topRow, preview, tags);
     item.append(avatar, body);
     elements.list.append(item);
@@ -222,6 +252,7 @@ function renderSelectedConversation() {
     state.selectedMessages.filter((message) => message.role === 'assistant').length,
   );
   elements.detailLastAt.textContent = formatRelativeDate(summary?.lastAt);
+  updateSelectedAiToggle(summary);
 
   for (const message of state.selectedMessages) {
     elements.messages.append(createMessageNode(message));
@@ -265,6 +296,9 @@ function clearSelection() {
   elements.detailUserCount.textContent = '-';
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
+  elements.detailAiToggle.checked = true;
+  elements.detailAiToggle.disabled = true;
+  elements.detailAiLabel.textContent = 'AI enabled';
   updateComposerState();
   renderConversationList();
 }
@@ -337,6 +371,104 @@ async function sendAdminReply() {
   } finally {
     updateComposerState();
   }
+}
+
+async function updateConversationAi(conversationId, aiEnabled) {
+  try {
+    const data = await fetchJson(`/api/admin/conversations/${encodeURIComponent(conversationId)}/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ aiEnabled }),
+    });
+
+    state.conversations = state.conversations.map((conversation) =>
+      conversation.conversationId === conversationId
+        ? { ...conversation, aiEnabled: data.settings.aiEnabled }
+        : conversation,
+    );
+
+    filterConversations();
+
+    if (state.selectedConversationId === conversationId) {
+      updateSelectedAiToggle(
+        state.conversations.find((conversation) => conversation.conversationId === conversationId),
+      );
+    }
+
+    showToast(data.settings.aiEnabled ? 'AI enabled for this customer.' : 'AI disabled for this customer.');
+  } catch (error) {
+    showToast(error.message || 'Could not update AI status.');
+    if (state.selectedConversationId) {
+      renderSelectedConversation();
+    } else {
+      renderConversationList();
+    }
+  }
+}
+
+function updateSelectedAiToggle(summary) {
+  const aiEnabled = summary?.aiEnabled !== false;
+
+  elements.detailAiToggle.disabled = !state.selectedConversationId;
+  elements.detailAiToggle.checked = aiEnabled;
+  elements.detailAiLabel.textContent = aiEnabled ? 'AI enabled' : 'AI disabled';
+}
+
+async function loadSettings() {
+  try {
+    const settings = await fetchJson('/api/admin/settings');
+    state.settings = settings;
+    elements.systemPromptInput.value = settings.systemInstruction || '';
+    elements.settingsModel.textContent = settings.geminiModel || '-';
+    elements.settingsStorage.textContent = settings.storageProvider || '-';
+    elements.settingsContext.textContent = `${settings.maxContextMessages || '-'} recent messages`;
+    elements.settingsTtl.textContent = `${settings.processedEventTtlSeconds || '-'} seconds`;
+  } catch (error) {
+    showToast(error.message || 'Could not load settings.');
+  }
+}
+
+async function saveBotSettings() {
+  const systemInstruction = elements.systemPromptInput.value.trim();
+
+  if (!systemInstruction) {
+    showToast('System prompt is required.');
+    return;
+  }
+
+  elements.saveSettingsButton.disabled = true;
+
+  try {
+    const data = await fetchJson('/api/admin/settings', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ systemInstruction }),
+    });
+
+    state.settings = {
+      ...state.settings,
+      systemInstruction: data.settings.systemInstruction,
+    };
+    elements.systemPromptInput.value = data.settings.systemInstruction;
+    showToast('Bot prompt saved in Redis.');
+  } catch (error) {
+    showToast(error.message || 'Could not save settings.');
+  } finally {
+    elements.saveSettingsButton.disabled = false;
+  }
+}
+
+async function useDefaultPrompt() {
+  if (!state.settings?.defaultSystemInstruction) {
+    await loadSettings();
+  }
+
+  elements.systemPromptInput.value = state.settings?.defaultSystemInstruction || '';
+  await saveBotSettings();
 }
 
 async function fetchJson(url, options = {}) {
@@ -462,57 +594,13 @@ function isFollowUpConversation(conversation) {
   return Date.now() - Date.parse(conversation.lastAt) > 24 * 60 * 60 * 1000;
 }
 
-function showInbox() {
-  setActiveNav('nav-inbox');
-  elements.search.value = '';
-  setActiveFilter('all');
-  showToast('Showing all coffee conversations.');
-}
+function renderCurrentPage() {
+  elements.pages.forEach((page) => {
+    page.classList.toggle('active', page.dataset.page === state.currentPage);
+  });
 
-function showTestBotStatus() {
-  setActiveNav('nav-test-bot');
-  showToast('Send a LINE message to the bot. New chats appear here automatically.');
-}
-
-function showSalesAnalytics() {
-  setActiveNav('nav-analytics');
-  const messages = state.conversations.reduce(
-    (total, conversation) => total + conversation.messageCount,
-    0,
-  );
-  showToast(`${state.conversations.length} chats and ${messages} saved messages.`);
-}
-
-function showRepeatBuyers() {
-  setActiveNav('nav-repeat-buyers');
-  state.activeFilter = 'repeat-buyers';
-  elements.filterButtons.forEach((button) => button.classList.remove('active'));
-  filterConversations();
-  showToast('Showing customers with longer coffee conversations.');
-}
-
-function showCustomerDatabase() {
-  setActiveNav('nav-customer-db');
-  elements.search.value = '';
-  setActiveFilter('all');
-  elements.search.focus();
-  showToast('Customer database view uses the searchable inbox list.');
-}
-
-async function showSettings() {
-  setActiveNav('nav-settings');
-
-  try {
-    const config = await fetchJson('/debug/config');
-    showToast(`Model: ${config.geminiModel}. Storage: ${config.storageProvider}. Admin enabled: ${config.adminEnabled}.`);
-  } catch (error) {
-    showToast(error.message || 'Could not load settings.');
-  }
-}
-
-function setActiveNav(id) {
   elements.navButtons.forEach((button) => {
-    button.classList.toggle('active', button.id === id);
+    button.classList.toggle('active', button.dataset.page === state.currentPage);
   });
 }
 
@@ -630,4 +718,12 @@ function showToast(message) {
   showToast.timeout = window.setTimeout(() => {
     elements.toast.classList.remove('show');
   }, 2800);
+}
+
+function getCurrentPage() {
+  if (window.location.pathname.startsWith('/admin/settings')) {
+    return 'settings';
+  }
+
+  return 'inbox';
 }

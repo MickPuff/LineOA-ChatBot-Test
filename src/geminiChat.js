@@ -1,18 +1,17 @@
 import { GoogleGenAI } from '@google/genai';
 
 export class GeminiChat {
-  constructor({ apiKey, model, systemInstruction }) {
+  constructor({ apiKey, model }) {
     this.client = new GoogleGenAI({ apiKey });
     this.model = model;
-    this.systemInstruction = systemInstruction;
   }
 
-  async reply(history, userText) {
+  async reply(history, userText, systemInstruction) {
     const chat = this.client.chats.create({
       model: this.model,
       history: history.map(toGeminiMessage),
       config: {
-        systemInstruction: this.systemInstruction,
+        systemInstruction,
       },
     });
 

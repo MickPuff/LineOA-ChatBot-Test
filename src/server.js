@@ -24,7 +24,6 @@ const conversationStore = createConversationStore(config);
 const geminiChat = new GeminiChat({
   apiKey: config.geminiApiKey,
   model: config.geminiModel,
-  systemInstruction: config.botSystemInstruction,
 });
 
 app.get('/health', (_req, res) => {
@@ -48,6 +47,10 @@ app.get('/debug/config', (_req, res) => {
 });
 
 app.get(/^\/admin\/?$/, requireAdmin, (_req, res) => {
+  res.sendFile(path.join(adminPublicPath, 'index.html'));
+});
+
+app.get(['/admin/inbox', '/admin/settings'], requireAdmin, (_req, res) => {
   res.sendFile(path.join(adminPublicPath, 'index.html'));
 });
 
@@ -88,6 +91,26 @@ app.get('/api/admin/conversations/:conversationId', requireAdmin, async (req, re
   }
 });
 
+app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, async (req, res, next) => {
+  try {
+    const conversationId = req.params.conversationId;
+    const aiEnabled = req.body?.aiEnabled;
+
+    if (typeof aiEnabled !== 'boolean') {
+      res.status(400).json({ ok: false, error: 'aiEnabled must be true or false.' });
+      return;
+    }
+
+    const settings = await conversationStore.updateConversationSettings(conversationId, {
+      aiEnabled,
+    });
+
+    res.json({ ok: true, conversationId, settings });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, async (req, res, next) => {
   try {
     const conversationId = req.params.conversationId;
@@ -121,6 +144,49 @@ app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, asyn
     await conversationStore.append(conversationId, message);
 
     res.json({ ok: true, conversationId, message });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/settings', requireAdmin, async (_req, res, next) => {
+  try {
+    const botSettings = await getEffectiveBotSettings();
+
+    res.json({
+      ok: true,
+      geminiModel: config.geminiModel,
+      storageProvider: config.storageProvider,
+      maxContextMessages: config.maxContextMessages,
+      processedEventTtlSeconds: config.processedEventTtlSeconds,
+      systemInstruction: botSettings.systemInstruction,
+      defaultSystemInstruction: config.defaultBotSystemInstruction,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
+  try {
+    const systemInstruction = String(req.body?.systemInstruction || '').trim();
+
+    if (!systemInstruction) {
+      res.status(400).json({ ok: false, error: 'System prompt is required.' });
+      return;
+    }
+
+    if (systemInstruction.length > 4000) {
+      res.status(400).json({ ok: false, error: 'System prompt must be 4000 characters or fewer.' });
+      return;
+    }
+
+    const settings = await conversationStore.updateBotSettings({ systemInstruction });
+
+    res.json({
+      ok: true,
+      settings,
+    });
   } catch (error) {
     next(error);
   }
@@ -199,9 +265,21 @@ async function handleEvent(event) {
     at: new Date().toISOString(),
   });
 
+  const conversationSettings = await conversationStore.getConversationSettings(conversationId);
+
+  if (!conversationSettings.aiEnabled) {
+    console.log(`AI disabled for conversation: conversation=${conversationId}`);
+    return;
+  }
+
+  const botSettings = await getEffectiveBotSettings();
   let assistantText;
   try {
-    assistantText = await geminiChat.reply(history, userText);
+    assistantText = await geminiChat.reply(
+      history,
+      userText,
+      botSettings.systemInstruction,
+    );
   } catch (error) {
     console.error('Gemini request failed:', error);
     assistantText = 'Sorry, I could not reach Gemini right now. Please try again in a moment.';
@@ -291,6 +369,14 @@ async function replyToLine(replyToken, text) {
     replyToken,
     messages: [{ type: 'text', text: truncateLineText(text) }],
   });
+}
+
+async function getEffectiveBotSettings() {
+  const settings = await conversationStore.getBotSettings();
+
+  return {
+    systemInstruction: settings.systemInstruction || config.defaultBotSystemInstruction,
+  };
 }
 
 function truncateLineText(text) {
