@@ -26,8 +26,22 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/debug/config', (_req, res) => {
+  res.json({
+    ok: true,
+    storageProvider: config.storageProvider,
+    geminiModel: config.geminiModel,
+    hasLineChannelAccessToken: Boolean(config.lineChannelAccessToken),
+    hasLineChannelSecret: Boolean(config.lineChannelSecret),
+    hasGeminiApiKey: Boolean(config.geminiApiKey),
+    hasUpstashRedisRestUrl: Boolean(config.upstashRedisRestUrl),
+    hasUpstashRedisRestToken: Boolean(config.upstashRedisRestToken),
+  });
+});
+
 app.post('/webhook', middleware(lineConfig), async (req, res, next) => {
   try {
+    console.log(`LINE webhook received: ${req.body.events.length} event(s)`);
     await Promise.all(req.body.events.map(handleEvent));
     res.json({ ok: true });
   } catch (error) {
@@ -55,16 +69,21 @@ app.use((error, _req, res, _next) => {
 });
 
 async function handleEvent(event) {
+  console.log(`Handling LINE event: type=${event.type}, source=${event.source?.type || 'unknown'}`);
+
   if (event.type !== 'message' || event.message?.type !== 'text') {
+    console.log(`Ignoring unsupported LINE event: type=${event.type}, messageType=${event.message?.type || 'none'}`);
     return;
   }
 
   const userText = event.message.text.trim();
   const conversationId = getConversationId(event.source);
+  console.log(`Handling text message: conversation=${conversationId}, chars=${userText.length}`);
 
   if (isResetCommand(userText)) {
     await conversationStore.clear(conversationId);
     await replyToLine(event.replyToken, 'Done. I cleared our conversation context.');
+    console.log(`Reset conversation context: conversation=${conversationId}`);
     return;
   }
 
@@ -91,6 +110,7 @@ async function handleEvent(event) {
   });
 
   await replyToLine(event.replyToken, assistantText);
+  console.log(`Replied to LINE: conversation=${conversationId}, chars=${assistantText.length}`);
 }
 
 function isResetCommand(text) {
