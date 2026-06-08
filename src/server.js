@@ -56,6 +56,8 @@ app.use('/admin', requireAdmin, express.static(adminPublicPath, {
   redirect: false,
 }));
 
+app.use('/api/admin', requireAdmin, express.json({ limit: '32kb' }));
+
 app.get('/api/admin/conversations', requireAdmin, async (_req, res, next) => {
   try {
     const conversations = await conversationStore.listConversations();
@@ -81,6 +83,44 @@ app.get('/api/admin/conversations/:conversationId', requireAdmin, async (req, re
     const history = await conversationStore.getHistory(conversationId);
 
     res.json({ ok: true, conversationId, messages: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, async (req, res, next) => {
+  try {
+    const conversationId = req.params.conversationId;
+    const text = String(req.body?.text || '').trim();
+
+    if (!text) {
+      res.status(400).json({ ok: false, error: 'Message text is required.' });
+      return;
+    }
+
+    if (!isPushableLineConversation(conversationId)) {
+      res.status(400).json({
+        ok: false,
+        error: 'Admin replies are only supported for LINE user, group, or room conversations.',
+      });
+      return;
+    }
+
+    const to = getLineRecipient(conversationId);
+    const message = {
+      role: 'assistant',
+      text,
+      at: new Date().toISOString(),
+      from: 'admin',
+    };
+
+    await lineClient.pushMessage({
+      to,
+      messages: [{ type: 'text', text: truncateLineText(text) }],
+    });
+    await conversationStore.append(conversationId, message);
+
+    res.json({ ok: true, conversationId, message });
   } catch (error) {
     next(error);
   }
@@ -179,6 +219,22 @@ async function handleEvent(event) {
 
 function isResetCommand(text) {
   return ['/reset', 'reset', 'clear', '/clear'].includes(text.toLowerCase());
+}
+
+function getLineRecipient(conversationId) {
+  const separatorIndex = conversationId.indexOf(':');
+  const type = separatorIndex >= 0 ? conversationId.slice(0, separatorIndex) : '';
+  const id = separatorIndex >= 0 ? conversationId.slice(separatorIndex + 1) : '';
+
+  if (['user', 'group', 'room'].includes(type) && id) {
+    return id;
+  }
+
+  throw new Error('Admin replies are only supported for LINE user, group, or room conversations.');
+}
+
+function isPushableLineConversation(conversationId) {
+  return ['user:', 'group:', 'room:'].some((prefix) => conversationId.startsWith(prefix));
 }
 
 function requireAdmin(req, res, next) {

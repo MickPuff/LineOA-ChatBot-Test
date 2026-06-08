@@ -3,6 +3,7 @@ const state = {
   filteredConversations: [],
   selectedConversationId: null,
   selectedMessages: [],
+  activeFilter: 'all',
 };
 
 const elements = {
@@ -13,11 +14,17 @@ const elements = {
   title: document.querySelector('#conversation-title'),
   meta: document.querySelector('#conversation-meta'),
   refreshButton: document.querySelector('#refresh-button'),
+  filterButtons: [...document.querySelectorAll('.queue-tabs button[data-filter]')],
+  navButtons: [...document.querySelectorAll('.nav-item[type="button"]')],
+  adminReplyInput: document.querySelector('#admin-reply-input'),
+  adminReplyButton: document.querySelector('#admin-reply-button'),
   copyIdButton: document.querySelector('#copy-id-button'),
   exportButton: document.querySelector('#export-button'),
   toast: document.querySelector('#toast'),
   metricConversations: document.querySelector('#metric-conversations'),
   metricMessages: document.querySelector('#metric-messages'),
+  metricAdmin: document.querySelector('#metric-admin'),
+  metricFollowUp: document.querySelector('#metric-follow-up'),
   detailTitle: document.querySelector('#detail-title'),
   detailId: document.querySelector('#detail-id'),
   detailCount: document.querySelector('#detail-count'),
@@ -28,9 +35,26 @@ const elements = {
 
 elements.refreshButton.addEventListener('click', () => loadConversations());
 elements.search.addEventListener('input', () => filterConversations());
+elements.filterButtons.forEach((button) => {
+  button.addEventListener('click', () => setActiveFilter(button.dataset.filter));
+});
+document.querySelector('#nav-inbox')?.addEventListener('click', () => showInbox());
+document.querySelector('#nav-test-bot')?.addEventListener('click', () => showTestBotStatus());
+document.querySelector('#nav-analytics')?.addEventListener('click', () => showSalesAnalytics());
+document.querySelector('#nav-repeat-buyers')?.addEventListener('click', () => showRepeatBuyers());
+document.querySelector('#nav-customer-db')?.addEventListener('click', () => showCustomerDatabase());
+document.querySelector('#nav-settings')?.addEventListener('click', () => showSettings());
+elements.adminReplyButton.addEventListener('click', () => sendAdminReply());
+elements.adminReplyInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    sendAdminReply();
+  }
+});
 elements.copyIdButton.addEventListener('click', () => copySelectedConversationId());
 elements.exportButton.addEventListener('click', () => exportSelectedConversation());
 
+updateComposerState();
 loadConversations();
 
 async function loadConversations() {
@@ -62,9 +86,12 @@ async function loadConversations() {
 
 function filterConversations() {
   const query = elements.search.value.trim().toLowerCase();
+  const byFilter = state.conversations.filter((conversation) =>
+    matchesActiveFilter(conversation),
+  );
 
   state.filteredConversations = query
-    ? state.conversations.filter((conversation) =>
+    ? byFilter.filter((conversation) =>
         [
           conversation.conversationId,
           conversation.title,
@@ -75,7 +102,7 @@ function filterConversations() {
           .toLowerCase()
           .includes(query),
       )
-    : [...state.conversations];
+    : [...byFilter];
 
   renderConversationList();
 }
@@ -86,7 +113,7 @@ function renderConversationList() {
   if (state.filteredConversations.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'No chats found.';
+    empty.textContent = getEmptyListMessage();
     elements.list.append(empty);
     return;
   }
@@ -183,6 +210,12 @@ function renderSelectedConversation() {
   for (const message of state.selectedMessages) {
     elements.messages.append(createMessageNode(message));
   }
+
+  updateComposerState();
+  requestAnimationFrame(() => {
+    const stage = document.querySelector('.conversation-stage');
+    stage.scrollTop = stage.scrollHeight;
+  });
 }
 
 function createMessageNode(message) {
@@ -216,6 +249,7 @@ function clearSelection() {
   elements.detailUserCount.textContent = '-';
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
+  updateComposerState();
   renderConversationList();
 }
 
@@ -250,15 +284,65 @@ function exportSelectedConversation() {
   URL.revokeObjectURL(url);
 }
 
-async function fetchJson(url) {
+async function sendAdminReply() {
+  const text = elements.adminReplyInput.value.trim();
+
+  if (!state.selectedConversationId) {
+    showToast('Select a customer conversation first.');
+    return;
+  }
+
+  if (!isPushableLineConversation(state.selectedConversationId)) {
+    showToast('Admin replies support LINE user, group, or room chats only.');
+    return;
+  }
+
+  if (!text) {
+    showToast('Type a reply before sending.');
+    return;
+  }
+
+  elements.adminReplyButton.disabled = true;
+  elements.adminReplyInput.disabled = true;
+
+  try {
+    await fetchJson(`/api/admin/conversations/${encodeURIComponent(state.selectedConversationId)}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+    elements.adminReplyInput.value = '';
+    showToast('Admin reply sent to LINE and saved.');
+    await loadConversations();
+  } catch (error) {
+    showToast(error.message || 'Could not send admin reply.');
+  } finally {
+    updateComposerState();
+  }
+}
+
+async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
+    ...options,
     headers: {
       Accept: 'application/json',
+      ...(options.headers || {}),
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed with HTTP ${response.status}`);
+    let errorMessage = `Request failed with HTTP ${response.status}`;
+
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.error || errorMessage;
+    } catch {
+      // Keep the HTTP status fallback when the server did not return JSON.
+    }
+
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -267,11 +351,132 @@ async function fetchJson(url) {
 function updateMetrics(totals = {}) {
   elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} chats`;
   elements.metricMessages.textContent = formatNumber(totals.messages || 0);
+  elements.metricAdmin.textContent = formatNumber(
+    state.conversations.filter((conversation) => conversation.lastRole === 'user').length,
+  );
+  elements.metricFollowUp.textContent = formatNumber(
+    state.conversations.filter(isFollowUpConversation).length,
+  );
 }
 
 function setLoading(isLoading) {
   elements.refreshButton.disabled = isLoading;
   elements.refreshButton.textContent = isLoading ? 'Loading' : 'Refresh';
+}
+
+function setActiveFilter(filter) {
+  state.activeFilter = filter;
+  elements.filterButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.filter === filter);
+  });
+  filterConversations();
+}
+
+function matchesActiveFilter(conversation) {
+  if (state.activeFilter === 'needs-admin') {
+    return conversation.lastRole === 'user';
+  }
+
+  if (state.activeFilter === 'follow-up') {
+    return isFollowUpConversation(conversation);
+  }
+
+  if (state.activeFilter === 'repeat-buyers') {
+    return conversation.messageCount >= 4;
+  }
+
+  return true;
+}
+
+function isFollowUpConversation(conversation) {
+  if (!conversation.lastAt) {
+    return false;
+  }
+
+  return Date.now() - Date.parse(conversation.lastAt) > 24 * 60 * 60 * 1000;
+}
+
+function showInbox() {
+  setActiveNav('nav-inbox');
+  elements.search.value = '';
+  setActiveFilter('all');
+  showToast('Showing all coffee conversations.');
+}
+
+function showTestBotStatus() {
+  setActiveNav('nav-test-bot');
+  showToast('Send a LINE message to the bot, then press Refresh to verify it appears here.');
+}
+
+function showSalesAnalytics() {
+  setActiveNav('nav-analytics');
+  const messages = state.conversations.reduce(
+    (total, conversation) => total + conversation.messageCount,
+    0,
+  );
+  showToast(`${state.conversations.length} chats and ${messages} saved messages.`);
+}
+
+function showRepeatBuyers() {
+  setActiveNav('nav-repeat-buyers');
+  state.activeFilter = 'repeat-buyers';
+  elements.filterButtons.forEach((button) => button.classList.remove('active'));
+  filterConversations();
+  showToast('Showing customers with longer coffee conversations.');
+}
+
+function showCustomerDatabase() {
+  setActiveNav('nav-customer-db');
+  elements.search.value = '';
+  setActiveFilter('all');
+  elements.search.focus();
+  showToast('Customer database view uses the searchable inbox list.');
+}
+
+async function showSettings() {
+  setActiveNav('nav-settings');
+
+  try {
+    const config = await fetchJson('/debug/config');
+    showToast(`Model: ${config.geminiModel}. Storage: ${config.storageProvider}. Admin enabled: ${config.adminEnabled}.`);
+  } catch (error) {
+    showToast(error.message || 'Could not load settings.');
+  }
+}
+
+function setActiveNav(id) {
+  elements.navButtons.forEach((button) => {
+    button.classList.toggle('active', button.id === id);
+  });
+}
+
+function updateComposerState() {
+  const canReply = isPushableLineConversation(state.selectedConversationId);
+  elements.adminReplyInput.disabled = !canReply;
+  elements.adminReplyButton.disabled = !canReply;
+  elements.adminReplyInput.placeholder = canReply
+    ? 'Reply as admin to this LINE customer'
+    : 'Select a LINE user, group, or room chat to reply';
+}
+
+function isPushableLineConversation(conversationId) {
+  return ['user:', 'group:', 'room:'].some((prefix) => conversationId?.startsWith(prefix));
+}
+
+function getEmptyListMessage() {
+  if (state.activeFilter === 'needs-admin') {
+    return 'No chats currently need admin attention.';
+  }
+
+  if (state.activeFilter === 'follow-up') {
+    return 'No follow-up chats found.';
+  }
+
+  if (state.activeFilter === 'repeat-buyers') {
+    return 'No repeat-buyer conversations found yet.';
+  }
+
+  return 'No chats found.';
 }
 
 function formatDate(value) {

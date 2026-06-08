@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=coffee">
+    <link rel="stylesheet" href="/admin/styles.css?v=coffee-fixes">
   </head>
   <body>
     <div class="app-shell">
@@ -19,11 +19,11 @@
 
         <nav class="nav-section" aria-label="Workflows">
           <p class="nav-label">Workflow</p>
-          <a class="nav-item active" href="/admin">
+          <button id="nav-inbox" class="nav-item active" type="button">
             <span class="nav-icon">M</span>
             <span>Inbox</span>
-          </a>
-          <button class="nav-item muted-action" type="button" disabled>
+          </button>
+          <button id="nav-test-bot" class="nav-item" type="button">
             <span class="nav-icon">T</span>
             <span>Test Bot</span>
           </button>
@@ -31,25 +31,22 @@
 
         <nav class="nav-section" aria-label="Planning">
           <p class="nav-label">Growth</p>
-          <button class="nav-item muted-action" type="button" disabled>
+          <button id="nav-analytics" class="nav-item" type="button">
             <span class="nav-icon">A</span>
             <span>Sales Analytics</span>
-            <small>Soon</small>
           </button>
-          <button class="nav-item muted-action" type="button" disabled>
+          <button id="nav-repeat-buyers" class="nav-item" type="button">
             <span class="nav-icon">F</span>
             <span>Repeat Buyers</span>
-            <small>Soon</small>
           </button>
-          <button class="nav-item muted-action" type="button" disabled>
+          <button id="nav-customer-db" class="nav-item" type="button">
             <span class="nav-icon">D</span>
             <span>Customer Database</span>
-            <small>Soon</small>
           </button>
         </nav>
 
         <footer class="nav-footer">
-          <button class="nav-item muted-action" type="button" disabled>
+          <button id="nav-settings" class="nav-item" type="button">
             <span class="nav-icon">C</span>
             <span>Settings</span>
           </button>
@@ -86,9 +83,9 @@
         </div>
 
         <div class="queue-tabs" aria-label="Conversation filters">
-          <button class="active" type="button">AI <span id="metric-messages">0</span></button>
-          <button type="button" disabled>Admin <span>0</span></button>
-          <button type="button" disabled>Follow-up <span>0</span></button>
+          <button class="active" type="button" data-filter="all">AI <span id="metric-messages">0</span></button>
+          <button type="button" data-filter="needs-admin">Admin <span id="metric-admin">0</span></button>
+          <button type="button" data-filter="follow-up">Follow-up <span id="metric-follow-up">0</span></button>
         </div>
 
         <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
@@ -118,8 +115,8 @@
         </section>
 
         <footer class="reply-bar">
-          <input type="text" disabled placeholder="Admin reply composer placeholder">
-          <button type="button" disabled title="Send">S</button>
+          <input id="admin-reply-input" type="text" placeholder="Reply as admin to this LINE customer">
+          <button id="admin-reply-button" type="button" title="Send">S</button>
         </footer>
       </main>
 
@@ -183,6 +180,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=coffee" type="module"></script>
+    <script src="/admin/app.js?v=coffee-fixes" type="module"></script>
   </body>
 </html>
