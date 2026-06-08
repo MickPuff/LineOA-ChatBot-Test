@@ -18,6 +18,7 @@ const elements = {
   toast: document.querySelector('#toast'),
   metricConversations: document.querySelector('#metric-conversations'),
   metricMessages: document.querySelector('#metric-messages'),
+  detailTitle: document.querySelector('#detail-title'),
   detailId: document.querySelector('#detail-id'),
   detailCount: document.querySelector('#detail-count'),
   detailUserCount: document.querySelector('#detail-user-count'),
@@ -100,27 +101,42 @@ function renderConversationList() {
     );
     item.addEventListener('click', () => selectConversation(conversation.conversationId));
 
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '?';
+
+    const body = document.createElement('div');
+    body.className = 'conversation-main';
+
     const topRow = document.createElement('div');
     topRow.className = 'conversation-row';
 
     const title = document.createElement('div');
     title.className = 'conversation-title';
-    title.textContent = conversation.title || conversation.conversationId;
-
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = String(conversation.messageCount);
-
-    const preview = document.createElement('div');
-    preview.className = 'conversation-preview';
-    preview.textContent = conversation.lastText || 'No saved messages';
+    title.textContent = getConversationDisplayName(conversation);
 
     const time = document.createElement('div');
     time.className = 'conversation-time';
-    time.textContent = formatDate(conversation.lastAt);
+    time.textContent = formatRelativeDate(conversation.lastAt);
 
-    topRow.append(title, badge);
-    item.append(topRow, preview, time);
+    const preview = document.createElement('div');
+    preview.className = 'conversation-preview';
+    preview.textContent = conversation.lastText || 'ยังไม่มีข้อความที่บันทึก';
+
+    const tags = document.createElement('div');
+    tags.className = 'conversation-tags';
+
+    const dot = document.createElement('span');
+    dot.className = 'status-dot';
+
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = `${conversation.messageCount} ข้อความ`;
+
+    topRow.append(title, time);
+    tags.append(dot, badge);
+    body.append(topRow, preview, tags);
+    item.append(avatar, body);
     elements.list.append(item);
   }
 }
@@ -148,8 +164,11 @@ function renderSelectedConversation() {
   elements.copyIdButton.disabled = false;
   elements.exportButton.disabled = false;
 
-  elements.title.textContent = summary?.title || state.selectedConversationId;
-  elements.meta.textContent = `${state.selectedMessages.length} saved messages`;
+  const displayName = getConversationDisplayName(summary);
+
+  elements.title.textContent = displayName;
+  elements.meta.textContent = `${state.selectedMessages.length} ข้อความที่บันทึกไว้`;
+  elements.detailTitle.textContent = displayName;
 
   elements.detailId.textContent = state.selectedConversationId;
   elements.detailCount.textContent = String(state.selectedMessages.length);
@@ -159,7 +178,7 @@ function renderSelectedConversation() {
   elements.detailAssistantCount.textContent = String(
     state.selectedMessages.filter((message) => message.role === 'assistant').length,
   );
-  elements.detailLastAt.textContent = formatDate(summary?.lastAt);
+  elements.detailLastAt.textContent = formatRelativeDate(summary?.lastAt);
 
   for (const message of state.selectedMessages) {
     elements.messages.append(createMessageNode(message));
@@ -189,8 +208,9 @@ function clearSelection() {
   elements.emptyState.style.display = 'grid';
   elements.copyIdButton.disabled = true;
   elements.exportButton.disabled = true;
-  elements.title.textContent = 'Select a chat';
-  elements.meta.textContent = 'Stored in Upstash Redis';
+  elements.title.textContent = 'เลือกลูกค้า';
+  elements.meta.textContent = 'ยังไม่ได้เลือกบทสนทนา';
+  elements.detailTitle.textContent = 'ลูกค้าใหม่';
   elements.detailId.textContent = '-';
   elements.detailCount.textContent = '-';
   elements.detailUserCount.textContent = '-';
@@ -245,7 +265,7 @@ async function fetchJson(url) {
 }
 
 function updateMetrics(totals = {}) {
-  elements.metricConversations.textContent = formatNumber(totals.conversations || 0);
+  elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} แชท`;
   elements.metricMessages.textContent = formatNumber(totals.messages || 0);
 }
 
@@ -271,8 +291,64 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatRelativeDate(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < minuteMs) {
+    return 'ตอนนี้';
+  }
+
+  if (diffMs < hourMs) {
+    return `${Math.max(1, Math.floor(diffMs / minuteMs))} นาที`;
+  }
+
+  if (diffMs < dayMs) {
+    return `${Math.floor(diffMs / hourMs)} ชม.`;
+  }
+
+  if (diffMs < 10 * dayMs) {
+    return `${Math.floor(diffMs / dayMs)} วันก่อน`;
+  }
+
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+}
+
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
+}
+
+function getConversationDisplayName(conversation) {
+  if (!conversation) {
+    return 'ลูกค้าใหม่';
+  }
+
+  const id = conversation.conversationId || '';
+
+  if (id.startsWith('group:')) {
+    return 'กลุ่มลูกค้า';
+  }
+
+  if (id.startsWith('room:')) {
+    return 'ห้องแชทลูกค้า';
+  }
+
+  return 'ลูกค้าใหม่';
 }
 
 function showToast(message) {
