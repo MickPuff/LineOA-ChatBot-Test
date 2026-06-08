@@ -4,7 +4,13 @@ const state = {
   selectedConversationId: null,
   selectedMessages: [],
   activeFilter: 'all',
+  hasLoadedConversations: false,
+  isLoadingConversations: false,
+  seenUserMessageCounts: new Map(),
+  unreadUserMessageCounts: new Map(),
 };
+
+const AUTO_REFRESH_MS = 4000;
 
 const elements = {
   list: document.querySelector('#conversation-list'),
@@ -13,7 +19,6 @@ const elements = {
   emptyState: document.querySelector('#empty-state'),
   title: document.querySelector('#conversation-title'),
   meta: document.querySelector('#conversation-meta'),
-  refreshButton: document.querySelector('#refresh-button'),
   filterButtons: [...document.querySelectorAll('.queue-tabs button[data-filter]')],
   navButtons: [...document.querySelectorAll('.nav-item[type="button"]')],
   adminReplyInput: document.querySelector('#admin-reply-input'),
@@ -33,7 +38,6 @@ const elements = {
   detailLastAt: document.querySelector('#detail-last-at'),
 };
 
-elements.refreshButton.addEventListener('click', () => loadConversations());
 elements.search.addEventListener('input', () => filterConversations());
 elements.filterButtons.forEach((button) => {
   button.addEventListener('click', () => setActiveFilter(button.dataset.filter));
@@ -56,13 +60,21 @@ elements.exportButton.addEventListener('click', () => exportSelectedConversation
 
 updateComposerState();
 loadConversations();
+window.setInterval(() => loadConversations({ silent: true }), AUTO_REFRESH_MS);
 
-async function loadConversations() {
-  setLoading(true);
+async function loadConversations({ silent = false } = {}) {
+  if (state.isLoadingConversations) {
+    return;
+  }
+
+  state.isLoadingConversations = true;
 
   try {
     const data = await fetchJson('/api/admin/conversations');
-    state.conversations = data.conversations || [];
+    const conversations = data.conversations || [];
+
+    updateUnreadState(conversations);
+    state.conversations = conversations;
     updateMetrics(data.totals);
     filterConversations();
 
@@ -78,9 +90,11 @@ async function loadConversations() {
       }
     }
   } catch (error) {
-    showToast(error.message || 'Could not load conversations.');
+    if (!silent) {
+      showToast(error.message || 'Could not load conversations.');
+    }
   } finally {
-    setLoading(false);
+    state.isLoadingConversations = false;
   }
 }
 
@@ -119,6 +133,7 @@ function renderConversationList() {
   }
 
   for (const conversation of state.filteredConversations) {
+    const unreadCount = getUnreadCount(conversation.conversationId);
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'conversation-item';
@@ -129,7 +144,7 @@ function renderConversationList() {
     item.addEventListener('click', () => selectConversation(conversation.conversationId));
 
     const avatar = document.createElement('div');
-    avatar.className = 'avatar';
+    avatar.className = `avatar${unreadCount > 0 ? ' has-unread' : ''}`;
     avatar.textContent = '?';
 
     const body = document.createElement('div');
@@ -154,11 +169,11 @@ function renderConversationList() {
     tags.className = 'conversation-tags';
 
     const dot = document.createElement('span');
-    dot.className = 'status-dot';
+    dot.className = `status-dot${unreadCount > 0 ? ' has-unread' : ''}`;
 
     const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = `${conversation.messageCount} messages`;
+    badge.className = `badge unread-badge${unreadCount > 0 ? ' has-unread' : ''}`;
+    badge.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'Read';
 
     topRow.append(title, time);
     tags.append(dot, badge);
@@ -170,6 +185,7 @@ function renderConversationList() {
 
 async function selectConversation(conversationId) {
   state.selectedConversationId = conversationId;
+  markConversationRead(conversationId);
   renderConversationList();
 
   try {
@@ -350,7 +366,7 @@ async function fetchJson(url, options = {}) {
 
 function updateMetrics(totals = {}) {
   elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} chats`;
-  elements.metricMessages.textContent = formatNumber(totals.messages || 0);
+  elements.metricMessages.textContent = formatNumber(state.conversations.length);
   elements.metricAdmin.textContent = formatNumber(
     state.conversations.filter((conversation) => conversation.lastRole === 'user').length,
   );
@@ -359,9 +375,59 @@ function updateMetrics(totals = {}) {
   );
 }
 
-function setLoading(isLoading) {
-  elements.refreshButton.disabled = isLoading;
-  elements.refreshButton.textContent = isLoading ? 'Loading' : 'Refresh';
+function updateUnreadState(conversations) {
+  for (const conversation of conversations) {
+    const id = conversation.conversationId;
+    const currentUserMessages = conversation.userMessageCount || 0;
+    const previousUserMessages = state.seenUserMessageCounts.get(id);
+
+    if (id === state.selectedConversationId) {
+      state.seenUserMessageCounts.set(id, currentUserMessages);
+      state.unreadUserMessageCounts.set(id, 0);
+      continue;
+    }
+
+    if (previousUserMessages === undefined) {
+      state.seenUserMessageCounts.set(id, currentUserMessages);
+      state.unreadUserMessageCounts.set(id, state.hasLoadedConversations ? currentUserMessages : 0);
+      continue;
+    }
+
+    if (currentUserMessages > previousUserMessages) {
+      const currentUnread = state.unreadUserMessageCounts.get(id) || 0;
+      state.unreadUserMessageCounts.set(
+        id,
+        currentUnread + currentUserMessages - previousUserMessages,
+      );
+    }
+
+    state.seenUserMessageCounts.set(id, currentUserMessages);
+  }
+
+  const currentIds = new Set(conversations.map((conversation) => conversation.conversationId));
+
+  for (const id of state.unreadUserMessageCounts.keys()) {
+    if (!currentIds.has(id)) {
+      state.unreadUserMessageCounts.delete(id);
+      state.seenUserMessageCounts.delete(id);
+    }
+  }
+
+  state.hasLoadedConversations = true;
+}
+
+function getUnreadCount(conversationId) {
+  return state.unreadUserMessageCounts.get(conversationId) || 0;
+}
+
+function markConversationRead(conversationId) {
+  const conversation = state.conversations.find((item) => item.conversationId === conversationId);
+
+  state.unreadUserMessageCounts.set(conversationId, 0);
+
+  if (conversation) {
+    state.seenUserMessageCounts.set(conversationId, conversation.userMessageCount || 0);
+  }
 }
 
 function setActiveFilter(filter) {
@@ -405,7 +471,7 @@ function showInbox() {
 
 function showTestBotStatus() {
   setActiveNav('nav-test-bot');
-  showToast('Send a LINE message to the bot, then press Refresh to verify it appears here.');
+  showToast('Send a LINE message to the bot. New chats appear here automatically.');
 }
 
 function showSalesAnalytics() {

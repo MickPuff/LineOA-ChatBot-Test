@@ -248,7 +248,7 @@ p {
 .queue-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 18px 18px 10px;
 }
 
@@ -404,8 +404,12 @@ p {
   height: 11px;
   border: 2px solid #ffffff;
   border-radius: 50%;
-  background: var(--green);
+  background: #c8d0dc;
   content: "";
+}
+
+.avatar.has-unread::after {
+  background: var(--green);
 }
 
 .avatar.large {
@@ -465,6 +469,10 @@ p {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  background: #c8d0dc;
+}
+
+.status-dot.has-unread {
   background: var(--green);
 }
 
@@ -476,6 +484,16 @@ p {
   padding: 4px 9px;
   font-size: 12px;
   font-weight: 900;
+}
+
+.unread-badge {
+  background: #edf2f7;
+  color: #7d8797;
+}
+
+.unread-badge.has-unread {
+  background: var(--green-soft);
+  color: #07873d;
 }
 
 .chat-panel {
@@ -639,7 +657,8 @@ p {
   border-radius: 50%;
   background: var(--orange);
   color: #ffffff;
-  font-size: 22px;
+  font-size: 26px;
+  line-height: 1;
   box-shadow: 0 10px 18px rgba(255, 107, 26, 0.25);
   cursor: pointer;
 }

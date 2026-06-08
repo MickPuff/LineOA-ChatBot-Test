@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=coffee-fixes">
+    <link rel="stylesheet" href="/admin/styles.css?v=coffee-live">
   </head>
   <body>
     <div class="app-shell">
@@ -74,7 +74,6 @@
             <h3>Handled by AI</h3>
             <span id="metric-conversations" class="count-pill">0 chats</span>
           </div>
-          <button id="refresh-button" class="icon-button" type="button" title="Refresh">R</button>
         </div>
 
         <div class="search-wrap">
@@ -116,7 +115,7 @@
 
         <footer class="reply-bar">
           <input id="admin-reply-input" type="text" placeholder="Reply as admin to this LINE customer">
-          <button id="admin-reply-button" type="button" title="Send">S</button>
+          <button id="admin-reply-button" type="button" title="Send">&rarr;</button>
         </footer>
       </main>
 
@@ -180,6 +179,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=coffee-fixes" type="module"></script>
+    <script src="/admin/app.js?v=coffee-live" type="module"></script>
   </body>
 </html>
