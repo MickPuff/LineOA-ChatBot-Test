@@ -26,6 +26,8 @@ export function getConfig() {
     geminiModel: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
     maxContextMessages: Number(process.env.MAX_CONTEXT_MESSAGES || process.env.MAX_HISTORY_MESSAGES || 24),
     processedEventTtlSeconds: Number(process.env.PROCESSED_EVENT_TTL_SECONDS || 86400),
+    adminUsername: process.env.ADMIN_USERNAME || 'admin',
+    adminPassword: process.env.ADMIN_PASSWORD,
     storageProvider,
     upstashRedisRestUrl: process.env.UPSTASH_REDIS_REST_URL,
     upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN,

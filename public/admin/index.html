@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LINE Chat Admin</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Conversation navigation">
+        <header class="brand">
+          <div class="brand-mark">L</div>
+          <div>
+            <p class="eyebrow">LINE OA</p>
+            <h1>Chat Admin</h1>
+          </div>
+        </header>
+
+        <section class="metrics" aria-label="Conversation totals">
+          <div>
+            <span id="metric-conversations">0</span>
+            <small>Chats</small>
+          </div>
+          <div>
+            <span id="metric-messages">0</span>
+            <small>Messages</small>
+          </div>
+        </section>
+
+        <div class="search-wrap">
+          <input id="search" type="search" placeholder="Search chats" autocomplete="off">
+        </div>
+
+        <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <div>
+            <p class="eyebrow">Transcript</p>
+            <h2 id="conversation-title">Select a chat</h2>
+            <p id="conversation-meta" class="muted">Stored in Upstash Redis</p>
+          </div>
+          <div class="actions">
+            <button id="refresh-button" type="button">Refresh</button>
+            <button id="copy-id-button" type="button" disabled>Copy ID</button>
+            <button id="export-button" type="button" disabled>Export JSON</button>
+          </div>
+        </header>
+
+        <section class="content-grid">
+          <div class="transcript-panel">
+            <div id="empty-state" class="empty-state">
+              <h3>No conversation selected</h3>
+              <p>Choose a chat from the left to inspect the full saved transcript.</p>
+            </div>
+            <div id="messages" class="messages" aria-live="polite"></div>
+          </div>
+
+          <aside class="detail-panel" aria-label="Selected conversation details">
+            <h3>Details</h3>
+            <dl>
+              <div>
+                <dt>Conversation ID</dt>
+                <dd id="detail-id">-</dd>
+              </div>
+              <div>
+                <dt>Total messages</dt>
+                <dd id="detail-count">-</dd>
+              </div>
+              <div>
+                <dt>User messages</dt>
+                <dd id="detail-user-count">-</dd>
+              </div>
+              <div>
+                <dt>Assistant messages</dt>
+                <dd id="detail-assistant-count">-</dd>
+              </div>
+              <div>
+                <dt>Last activity</dt>
+                <dd id="detail-last-at">-</dd>
+              </div>
+            </dl>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/admin/app.js" type="module"></script>
+  </body>
+</html>

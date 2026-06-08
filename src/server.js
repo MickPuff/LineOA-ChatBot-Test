@@ -1,4 +1,7 @@
 import express from 'express';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   JSONParseError,
   LineBotClient,
@@ -11,6 +14,8 @@ import { GeminiChat } from './geminiChat.js';
 
 const config = getConfig();
 const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const adminPublicPath = path.join(__dirname, '..', 'public', 'admin');
 const lineConfig = { channelSecret: config.lineChannelSecret };
 const lineClient = LineBotClient.fromChannelAccessToken({
   channelAccessToken: config.lineChannelAccessToken,
@@ -38,7 +43,44 @@ app.get('/debug/config', (_req, res) => {
     hasUpstashRedisRestToken: Boolean(config.upstashRedisRestToken),
     maxContextMessages: config.maxContextMessages,
     processedEventTtlSeconds: config.processedEventTtlSeconds,
+    adminEnabled: Boolean(config.adminPassword),
   });
+});
+
+app.get('/admin', requireAdmin, (_req, res) => {
+  res.redirect('/admin/');
+});
+
+app.use('/admin', requireAdmin, express.static(adminPublicPath));
+
+app.get('/api/admin/conversations', requireAdmin, async (_req, res, next) => {
+  try {
+    const conversations = await conversationStore.listConversations();
+    const totals = conversations.reduce(
+      (summary, conversation) => ({
+        conversations: summary.conversations + 1,
+        messages: summary.messages + conversation.messageCount,
+        userMessages: summary.userMessages + conversation.userMessageCount,
+        assistantMessages: summary.assistantMessages + conversation.assistantMessageCount,
+      }),
+      { conversations: 0, messages: 0, userMessages: 0, assistantMessages: 0 },
+    );
+
+    res.json({ ok: true, totals, conversations });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/admin/conversations/:conversationId', requireAdmin, async (req, res, next) => {
+  try {
+    const conversationId = req.params.conversationId;
+    const history = await conversationStore.getHistory(conversationId);
+
+    res.json({ ok: true, conversationId, messages: history });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/webhook', middleware(lineConfig), async (req, res, next) => {
@@ -134,6 +176,52 @@ async function handleEvent(event) {
 
 function isResetCommand(text) {
   return ['/reset', 'reset', 'clear', '/clear'].includes(text.toLowerCase());
+}
+
+function requireAdmin(req, res, next) {
+  if (!config.adminPassword) {
+    res.status(503).send('Admin interface is disabled. Set ADMIN_PASSWORD in Render to enable it.');
+    return;
+  }
+
+  const authHeader = req.get('authorization') || '';
+  const [scheme, encodedCredentials] = authHeader.split(' ');
+
+  if (scheme !== 'Basic' || !encodedCredentials) {
+    requestAdminLogin(res);
+    return;
+  }
+
+  const credentials = Buffer.from(encodedCredentials, 'base64').toString('utf8');
+  const separatorIndex = credentials.indexOf(':');
+  const username = separatorIndex >= 0 ? credentials.slice(0, separatorIndex) : '';
+  const password = separatorIndex >= 0 ? credentials.slice(separatorIndex + 1) : '';
+
+  if (
+    timingSafeEqual(username, config.adminUsername) &&
+    timingSafeEqual(password, config.adminPassword)
+  ) {
+    next();
+    return;
+  }
+
+  requestAdminLogin(res);
+}
+
+function requestAdminLogin(res) {
+  res.set('WWW-Authenticate', 'Basic realm="LINE Chat Admin", charset="UTF-8"');
+  res.status(401).send('Authentication required.');
+}
+
+function timingSafeEqual(actual, expected) {
+  const actualBuffer = Buffer.from(actual || '');
+  const expectedBuffer = Buffer.from(expected || '');
+
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 async function replyToLine(replyToken, text) {

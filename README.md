@@ -9,6 +9,7 @@ A small Node.js webhook service that connects a LINE Official Account to Gemini.
 - Sends recent conversation context plus the latest message to Gemini
 - Stores full conversation logs in remote Upstash Redis
 - Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
+- Provides a password-protected admin page at `GET /admin`
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -29,6 +30,7 @@ Use this path if you do not want the bot running on your machine.
    GEMINI_API_KEY
    UPSTASH_REDIS_REST_URL
    UPSTASH_REDIS_REST_TOKEN
+   ADMIN_PASSWORD
    ```
 
 4. After Render deploys, copy your service URL and set the LINE webhook URL to:
@@ -38,6 +40,14 @@ Use this path if you do not want the bot running on your machine.
    ```
 
 5. Enable webhooks in the LINE Developers Console.
+
+6. Open the admin page at:
+
+   ```text
+   https://your-render-service.onrender.com/admin
+   ```
+
+   Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The default username is `admin`.
 
 ### Local Development
 
@@ -98,6 +108,8 @@ Use this path if you do not want the bot running on your machine.
 | `MAX_CONTEXT_MESSAGES` | No | value of `MAX_HISTORY_MESSAGES` or `24` | Recent stored messages sent to Gemini as context |
 | `MAX_HISTORY_MESSAGES` | No | `24` | Backward-compatible alias for `MAX_CONTEXT_MESSAGES` |
 | `PROCESSED_EVENT_TTL_SECONDS` | No | `86400` | Seconds to keep LINE webhook event IDs for duplicate detection |
+| `ADMIN_USERNAME` | No | `admin` | Username for the `/admin` chat log page |
+| `ADMIN_PASSWORD` | No | | Password for the `/admin` chat log page. If omitted, admin is disabled |
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |
 | `UPSTASH_REDIS_REST_URL` | Yes for Upstash | | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes for Upstash | | Upstash Redis REST token |
@@ -114,3 +126,5 @@ npm.cmd test
 LINE requires an HTTPS webhook URL. Local development usually needs a tunnel such as ngrok, Cloudflare Tunnel, or deployment to a host with HTTPS.
 
 If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot forgets context whenever the Node process restarts. Use Upstash for persistent non-local memory.
+
+The admin page reads conversation logs from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.

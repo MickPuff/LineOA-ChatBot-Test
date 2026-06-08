@@ -29,6 +29,51 @@ test('returns only recent history for LLM context', async () => {
   ]);
 });
 
+test('lists conversation summaries newest first', async () => {
+  const store = new MemoryConversationStore(4);
+
+  await store.append('user:old', {
+    role: 'user',
+    text: 'old chat',
+    at: '2026-06-08T10:00:00.000Z',
+  });
+  await store.append('user:new', {
+    role: 'user',
+    text: 'new chat',
+    at: '2026-06-08T11:00:00.000Z',
+  });
+  await store.append('user:new', {
+    role: 'assistant',
+    text: 'new reply',
+    at: '2026-06-08T11:01:00.000Z',
+  });
+
+  assert.deepEqual(await store.listConversations(), [
+    {
+      conversationId: 'user:new',
+      messageCount: 2,
+      userMessageCount: 1,
+      assistantMessageCount: 1,
+      firstAt: '2026-06-08T11:00:00.000Z',
+      lastAt: '2026-06-08T11:01:00.000Z',
+      lastRole: 'assistant',
+      lastText: 'new reply',
+      title: 'new chat',
+    },
+    {
+      conversationId: 'user:old',
+      messageCount: 1,
+      userMessageCount: 1,
+      assistantMessageCount: 0,
+      firstAt: '2026-06-08T10:00:00.000Z',
+      lastAt: '2026-06-08T10:00:00.000Z',
+      lastRole: 'user',
+      lastText: 'old chat',
+      title: 'old chat',
+    },
+  ]);
+});
+
 test('clears a conversation', async () => {
   const store = new MemoryConversationStore(4);
 

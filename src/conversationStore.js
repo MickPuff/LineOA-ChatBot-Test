@@ -1,5 +1,8 @@
 import { Redis } from '@upstash/redis';
 
+const CONVERSATION_KEY_PREFIX = 'lineoa:conversation:';
+const CONVERSATION_INDEX_KEY = 'lineoa:conversation-index';
+
 export function createConversationStore(config) {
   if (config.storageProvider === 'memory') {
     return new MemoryConversationStore(config.maxContextMessages, config.processedEventTtlSeconds);
@@ -43,6 +46,12 @@ export class MemoryConversationStore {
 
   async clear(conversationId) {
     this.conversations.delete(conversationId);
+  }
+
+  async listConversations() {
+    return Array.from(this.conversations.entries())
+      .map(([conversationId, history]) => summarizeConversation(conversationId, history))
+      .sort(sortConversationSummaries);
   }
 
   async claimWebhookEvent(webhookEventId) {
@@ -92,11 +101,24 @@ export class UpstashConversationStore {
     const nextHistory = [...history, message];
 
     await this.redis.set(this.#key(conversationId), JSON.stringify(nextHistory));
+    await this.redis.sadd(CONVERSATION_INDEX_KEY, conversationId);
     return nextHistory;
   }
 
   async clear(conversationId) {
     await this.redis.del(this.#key(conversationId));
+    await this.redis.srem(CONVERSATION_INDEX_KEY, conversationId);
+  }
+
+  async listConversations() {
+    const conversationIds = await this.#getConversationIds();
+    const summaries = await Promise.all(
+      conversationIds.map(async (conversationId) =>
+        summarizeConversation(conversationId, await this.getHistory(conversationId)),
+      ),
+    );
+
+    return summaries.sort(sortConversationSummaries);
   }
 
   async claimWebhookEvent(webhookEventId) {
@@ -113,12 +135,66 @@ export class UpstashConversationStore {
   }
 
   #key(conversationId) {
-    return `lineoa:conversation:${conversationId}`;
+    return `${CONVERSATION_KEY_PREFIX}${conversationId}`;
   }
 
   #eventKey(webhookEventId) {
     return `lineoa:webhook-event:${webhookEventId}`;
   }
+
+  async #getConversationIds() {
+    const indexedIds = await this.redis.smembers(CONVERSATION_INDEX_KEY);
+    const scannedIds = await this.#scanConversationIds();
+
+    return Array.from(new Set([...indexedIds, ...scannedIds])).sort();
+  }
+
+  async #scanConversationIds() {
+    const conversationIds = new Set();
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await this.redis.scan(cursor, {
+        match: `${CONVERSATION_KEY_PREFIX}*`,
+        count: 100,
+      });
+
+      for (const key of keys) {
+        if (key.startsWith(CONVERSATION_KEY_PREFIX)) {
+          conversationIds.add(key.slice(CONVERSATION_KEY_PREFIX.length));
+        }
+      }
+
+      cursor = String(nextCursor);
+    } while (cursor !== '0');
+
+    return Array.from(conversationIds);
+  }
+}
+
+function summarizeConversation(conversationId, history) {
+  const messages = Array.isArray(history) ? history : [];
+  const lastMessage = messages.at(-1);
+  const firstMessage = messages[0];
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+
+  return {
+    conversationId,
+    messageCount: messages.length,
+    userMessageCount: messages.filter((message) => message.role === 'user').length,
+    assistantMessageCount: messages.filter((message) => message.role === 'assistant').length,
+    firstAt: firstMessage?.at || null,
+    lastAt: lastMessage?.at || null,
+    lastRole: lastMessage?.role || null,
+    lastText: lastMessage?.text || '',
+    title: latestUserMessage?.text || conversationId,
+  };
+}
+
+function sortConversationSummaries(left, right) {
+  const leftTime = left.lastAt ? Date.parse(left.lastAt) : 0;
+  const rightTime = right.lastAt ? Date.parse(right.lastAt) : 0;
+  return rightTime - leftTime;
 }
 
 export function getConversationId(source = {}) {
