@@ -93,7 +93,7 @@ Use this path if you do not want the bot running on your machine.
 | `LINE_CHANNEL_SECRET` | Yes | | Messaging API channel secret |
 | `GEMINI_API_KEY` | Yes | | Gemini API key from Google AI Studio |
 | `PORT` | No | `3000` | Local HTTP port |
-| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model ID |
+| `GEMINI_MODEL` | No | `gemini-3.1-flash-lite` | Gemini model ID |
 | `MAX_CONTEXT_MESSAGES` | No | value of `MAX_HISTORY_MESSAGES` or `24` | Recent stored messages sent to Gemini as context |
 | `MAX_HISTORY_MESSAGES` | No | `24` | Backward-compatible alias for `MAX_CONTEXT_MESSAGES` |
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |

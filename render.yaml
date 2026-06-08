@@ -22,7 +22,7 @@ services:
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.1-flash-lite
       - key: MAX_CONTEXT_MESSAGES
         value: "24"
       - key: BOT_SYSTEM_INSTRUCTION
