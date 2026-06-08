@@ -47,11 +47,14 @@ app.get('/debug/config', (_req, res) => {
   });
 });
 
-app.get('/admin', requireAdmin, (_req, res) => {
-  res.redirect('/admin/');
+app.get(/^\/admin\/?$/, requireAdmin, (_req, res) => {
+  res.sendFile(path.join(adminPublicPath, 'index.html'));
 });
 
-app.use('/admin', requireAdmin, express.static(adminPublicPath));
+app.use('/admin', requireAdmin, express.static(adminPublicPath, {
+  index: false,
+  redirect: false,
+}));
 
 app.get('/api/admin/conversations', requireAdmin, async (_req, res, next) => {
   try {
