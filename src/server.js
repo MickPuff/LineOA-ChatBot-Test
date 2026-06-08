@@ -180,6 +180,7 @@ function isResetCommand(text) {
 
 function requireAdmin(req, res, next) {
   if (!config.adminPassword) {
+    console.warn('Admin auth rejected: ADMIN_PASSWORD is not configured.');
     res.status(503).send('Admin interface is disabled. Set ADMIN_PASSWORD in Render to enable it.');
     return;
   }
@@ -187,7 +188,8 @@ function requireAdmin(req, res, next) {
   const authHeader = req.get('authorization') || '';
   const [scheme, encodedCredentials] = authHeader.split(' ');
 
-  if (scheme !== 'Basic' || !encodedCredentials) {
+  if (scheme?.toLowerCase() !== 'basic' || !encodedCredentials) {
+    console.warn('Admin auth rejected: missing Basic Auth credentials.');
     requestAdminLogin(res);
     return;
   }
@@ -205,6 +207,7 @@ function requireAdmin(req, res, next) {
     return;
   }
 
+  console.warn(`Admin auth rejected: invalid credentials for username=${username || 'empty'}.`);
   requestAdminLogin(res);
 }
 

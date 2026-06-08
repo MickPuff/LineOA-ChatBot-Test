@@ -49,6 +49,8 @@ Use this path if you do not want the bot running on your machine.
 
    Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The default username is `admin`.
 
+   If the browser keeps asking for credentials, confirm that `ADMIN_PASSWORD` is set in Render and that you are entering `admin` as the username unless you changed `ADMIN_USERNAME`.
+
 ### Local Development
 
 1. Install dependencies:
