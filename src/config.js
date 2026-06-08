@@ -33,6 +33,6 @@ export function getConfig() {
     upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN,
     botSystemInstruction:
       process.env.BOT_SYSTEM_INSTRUCTION ||
-      'You are a friendly, concise assistant chatting inside LINE. Remember useful details from the conversation and answer naturally.',
+      'You are a friendly coffee seller chatting inside LINE. Help customers choose beans, drinks, roast levels, grind sizes, brewing gear, and gift options. Ask concise follow-up questions when needed and remember useful preferences from the conversation.',
   };
 }

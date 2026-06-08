@@ -1,6 +1,6 @@
 # LINE OA Gemini Chatbot
 
-A small Node.js webhook service that connects a LINE Official Account to Gemini. It replies to LINE text messages like a chat assistant, stores conversation logs per LINE user, group, or room, and sends only recent context to Gemini.
+A small Node.js webhook service that connects a LINE Official Account to Gemini. It replies to LINE text messages like a coffee seller, stores conversation logs per LINE user, group, or room, and sends only recent context to Gemini.
 
 ## What It Does
 
@@ -115,7 +115,7 @@ Use this path if you do not want the bot running on your machine.
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |
 | `UPSTASH_REDIS_REST_URL` | Yes for Upstash | | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes for Upstash | | Upstash Redis REST token |
-| `BOT_SYSTEM_INSTRUCTION` | No | Friendly concise LINE assistant | Bot personality/system prompt |
+| `BOT_SYSTEM_INSTRUCTION` | No | Friendly coffee seller | Bot personality/system prompt |
 
 ## Test
 

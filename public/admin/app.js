@@ -121,7 +121,7 @@ function renderConversationList() {
 
     const preview = document.createElement('div');
     preview.className = 'conversation-preview';
-    preview.textContent = conversation.lastText || 'ยังไม่มีข้อความที่บันทึก';
+    preview.textContent = conversation.lastText || 'No saved coffee request yet';
 
     const tags = document.createElement('div');
     tags.className = 'conversation-tags';
@@ -131,7 +131,7 @@ function renderConversationList() {
 
     const badge = document.createElement('span');
     badge.className = 'badge';
-    badge.textContent = `${conversation.messageCount} ข้อความ`;
+    badge.textContent = `${conversation.messageCount} messages`;
 
     topRow.append(title, time);
     tags.append(dot, badge);
@@ -167,7 +167,7 @@ function renderSelectedConversation() {
   const displayName = getConversationDisplayName(summary);
 
   elements.title.textContent = displayName;
-  elements.meta.textContent = `${state.selectedMessages.length} ข้อความที่บันทึกไว้`;
+  elements.meta.textContent = `${state.selectedMessages.length} saved messages`;
   elements.detailTitle.textContent = displayName;
 
   elements.detailId.textContent = state.selectedConversationId;
@@ -208,9 +208,9 @@ function clearSelection() {
   elements.emptyState.style.display = 'grid';
   elements.copyIdButton.disabled = true;
   elements.exportButton.disabled = true;
-  elements.title.textContent = 'เลือกลูกค้า';
-  elements.meta.textContent = 'ยังไม่ได้เลือกบทสนทนา';
-  elements.detailTitle.textContent = 'ลูกค้าใหม่';
+  elements.title.textContent = 'Select a customer';
+  elements.meta.textContent = 'No conversation selected';
+  elements.detailTitle.textContent = 'New Customer';
   elements.detailId.textContent = '-';
   elements.detailCount.textContent = '-';
   elements.detailUserCount.textContent = '-';
@@ -265,7 +265,7 @@ async function fetchJson(url) {
 }
 
 function updateMetrics(totals = {}) {
-  elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} แชท`;
+  elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} chats`;
   elements.metricMessages.textContent = formatNumber(totals.messages || 0);
 }
 
@@ -308,22 +308,22 @@ function formatRelativeDate(value) {
   const dayMs = 24 * hourMs;
 
   if (diffMs < minuteMs) {
-    return 'ตอนนี้';
+    return 'now';
   }
 
   if (diffMs < hourMs) {
-    return `${Math.max(1, Math.floor(diffMs / minuteMs))} นาที`;
+    return `${Math.max(1, Math.floor(diffMs / minuteMs))} min`;
   }
 
   if (diffMs < dayMs) {
-    return `${Math.floor(diffMs / hourMs)} ชม.`;
+    return `${Math.floor(diffMs / hourMs)} hr`;
   }
 
   if (diffMs < 10 * dayMs) {
-    return `${Math.floor(diffMs / dayMs)} วันก่อน`;
+    return `${Math.floor(diffMs / dayMs)} days ago`;
   }
 
-  return new Intl.DateTimeFormat('th-TH', {
+  return new Intl.DateTimeFormat(undefined, {
     day: 'numeric',
     month: 'short',
   }).format(date);
@@ -335,20 +335,20 @@ function formatNumber(value) {
 
 function getConversationDisplayName(conversation) {
   if (!conversation) {
-    return 'ลูกค้าใหม่';
+    return 'New Customer';
   }
 
   const id = conversation.conversationId || '';
 
   if (id.startsWith('group:')) {
-    return 'กลุ่มลูกค้า';
+    return 'Coffee Group';
   }
 
   if (id.startsWith('room:')) {
-    return 'ห้องแชทลูกค้า';
+    return 'Coffee Chat Room';
   }
 
-  return 'ลูกค้าใหม่';
+  return 'New Customer';
 }
 
 function showToast(message) {

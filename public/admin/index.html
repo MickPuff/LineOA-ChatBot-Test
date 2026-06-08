@@ -1,63 +1,63 @@
 <!doctype html>
-<html lang="th">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Racha Care Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=racha-care">
+    <title>Roastline Coffee Admin</title>
+    <link rel="stylesheet" href="/admin/styles.css?v=coffee">
   </head>
   <body>
     <div class="app-shell">
       <aside class="app-nav" aria-label="Main navigation">
         <header class="brand">
-          <div class="brand-mark">S</div>
+          <div class="brand-mark">C</div>
           <div>
-            <h1>Racha Care</h1>
-            <p>ห้างทองราชาเงินทอง</p>
+            <h1>Roastline Care</h1>
+            <p>Specialty coffee support</p>
           </div>
         </header>
 
         <nav class="nav-section" aria-label="Workflows">
-          <p class="nav-label">การทำงาน</p>
+          <p class="nav-label">Workflow</p>
           <a class="nav-item active" href="/admin">
             <span class="nav-icon">M</span>
-            <span>กล่องข้อความ</span>
+            <span>Inbox</span>
           </a>
           <button class="nav-item muted-action" type="button" disabled>
             <span class="nav-icon">T</span>
-            <span>ทดสอบบอท</span>
+            <span>Test Bot</span>
           </button>
         </nav>
 
         <nav class="nav-section" aria-label="Planning">
-          <p class="nav-label">แผนพัฒนา</p>
+          <p class="nav-label">Growth</p>
           <button class="nav-item muted-action" type="button" disabled>
             <span class="nav-icon">A</span>
-            <span>วิเคราะห์ข้อมูล</span>
-            <small>เร็วๆนี้</small>
+            <span>Sales Analytics</span>
+            <small>Soon</small>
           </button>
           <button class="nav-item muted-action" type="button" disabled>
             <span class="nav-icon">F</span>
-            <span>ติดตามลูกค้าเก่า</span>
-            <small>เร็วๆนี้</small>
+            <span>Repeat Buyers</span>
+            <small>Soon</small>
           </button>
           <button class="nav-item muted-action" type="button" disabled>
             <span class="nav-icon">D</span>
-            <span>ฐานข้อมูลลูกค้า</span>
-            <small>เร็วๆนี้</small>
+            <span>Customer Database</span>
+            <small>Soon</small>
           </button>
         </nav>
 
         <footer class="nav-footer">
           <button class="nav-item muted-action" type="button" disabled>
             <span class="nav-icon">C</span>
-            <span>ตั้งค่า</span>
+            <span>Settings</span>
           </button>
           <div class="operator">
             <div class="operator-avatar">A</div>
             <div>
-              <strong>พี่แอดมิน</strong>
-              <span>กำลังออนไลน์</span>
+              <strong>Store Admin</strong>
+              <span>Online</span>
             </div>
           </div>
         </footer>
@@ -66,29 +66,29 @@
       <section class="inbox-panel" aria-label="Conversation inbox">
         <header class="inbox-heading">
           <div>
-            <h2>กล่องข้อความ</h2>
-            <p>ระบบดูแลลูกค้า - ส่งต่อ AI ↔ แอดมิน</p>
+            <h2>Coffee Inbox</h2>
+            <p>Customer support - AI barista to admin handoff</p>
           </div>
           <span class="prototype-pill">PROTOTYPE</span>
         </header>
 
         <div class="queue-header">
           <div>
-            <h3>ดูแลโดย AI</h3>
-            <span id="metric-conversations" class="count-pill">0 แชท</span>
+            <h3>Handled by AI</h3>
+            <span id="metric-conversations" class="count-pill">0 chats</span>
           </div>
-          <button id="refresh-button" class="icon-button" type="button" title="Refresh">↻</button>
+          <button id="refresh-button" class="icon-button" type="button" title="Refresh">R</button>
         </div>
 
         <div class="search-wrap">
-          <span aria-hidden="true">⌕</span>
-          <input id="search" type="search" placeholder="ค้นหาชื่อลูกค้า หรือข้อความ..." autocomplete="off">
+          <span aria-hidden="true">S</span>
+          <input id="search" type="search" placeholder="Search customers or coffee requests..." autocomplete="off">
         </div>
 
         <div class="queue-tabs" aria-label="Conversation filters">
           <button class="active" type="button">AI <span id="metric-messages">0</span></button>
-          <button type="button" disabled>แอดมิน <span>0</span></button>
-          <button type="button" disabled>Win-back <span>0</span></button>
+          <button type="button" disabled>Admin <span>0</span></button>
+          <button type="button" disabled>Follow-up <span>0</span></button>
         </div>
 
         <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
@@ -99,90 +99,90 @@
           <div class="chat-person">
             <div class="avatar large">?</div>
             <div>
-              <h2 id="conversation-title">เลือกลูกค้า</h2>
-              <p id="conversation-meta">ยังไม่ได้เลือกบทสนทนา</p>
+              <h2 id="conversation-title">Select a customer</h2>
+              <p id="conversation-meta">No conversation selected</p>
             </div>
           </div>
           <div class="chat-status">
             <span class="online-dot"></span>
-            <span>AI - น้องราชา</span>
+            <span>AI - Coffee Seller</span>
           </div>
         </header>
 
         <section class="conversation-stage">
           <div id="empty-state" class="empty-state">
-            <h3>เลือกแชทจากกล่องข้อความ</h3>
-            <p>เมื่อเลือกแล้ว ระบบจะแสดงประวัติการคุยทั้งหมดที่เก็บไว้ใน Redis</p>
+            <h3>Select a coffee chat</h3>
+            <p>Choose a conversation to view the full Redis transcript.</p>
           </div>
           <div id="messages" class="messages" aria-live="polite"></div>
         </section>
 
         <footer class="reply-bar">
-          <input type="text" disabled placeholder="พิมพ์ในแถบ AI = ย้ายเข้าห้องแอดมินทันที">
-          <button type="button" disabled title="Send">➤</button>
+          <input type="text" disabled placeholder="Admin reply composer placeholder">
+          <button type="button" disabled title="Send">S</button>
         </footer>
       </main>
 
       <aside class="customer-panel" aria-label="Customer details">
         <header class="account-switcher">
           <div>
-            <strong>ราชาเงินทอง</strong>
+            <strong>Roastline Coffee</strong>
             <span>LINE Official</span>
           </div>
-          <div class="account-avatar">S</div>
+          <div class="account-avatar">C</div>
         </header>
 
         <section class="customer-card">
           <div class="avatar profile">?</div>
-          <h2 id="detail-title">ลูกค้าใหม่</h2>
-          <span class="tag">ลูกค้าเขียน</span>
+          <h2 id="detail-title">New Customer</h2>
+          <span class="tag">Coffee lead</span>
         </section>
 
         <section class="side-metrics">
           <div>
             <strong id="detail-count">-</strong>
-            <span>ข้อความรวม</span>
+            <span>Total messages</span>
           </div>
           <div>
             <strong id="detail-last-at">-</strong>
-            <span>คุยล่าสุด</span>
+            <span>Last chat</span>
           </div>
         </section>
 
         <section class="detail-block">
-          <h3>ข้อมูลลูกค้า</h3>
+          <h3>Customer Info</h3>
           <dl>
             <div>
-              <dt>ที่มา - LINE id</dt>
+              <dt>Source - LINE id</dt>
               <dd id="detail-id">-</dd>
             </div>
             <div>
-              <dt>User messages</dt>
+              <dt>Customer messages</dt>
               <dd id="detail-user-count">-</dd>
             </div>
             <div>
-              <dt>Assistant messages</dt>
+              <dt>AI messages</dt>
               <dd id="detail-assistant-count">-</dd>
             </div>
           </dl>
         </section>
 
         <section class="note-card">
-          <div class="note-label">AI อ่านทุกครั้ง</div>
-          <p>## สรุปลูกค้า</p>
-          <p>- ลูกค้าใหม่ (LINE)</p>
-          <p>- ดูประวัติจาก Redis</p>
-          <p>- ส่งต่อแอดมินได้ในอนาคต</p>
+          <div class="note-label">AI reads every chat</div>
+          <p>## Customer Summary</p>
+          <p>- Coffee buyer from LINE</p>
+          <p>- Full transcript stored in Redis</p>
+          <p>- Admin handoff can be added later</p>
         </section>
 
         <div class="panel-actions">
-          <button id="copy-id-button" type="button" disabled>คัดลอก ID</button>
+          <button id="copy-id-button" type="button" disabled>Copy ID</button>
           <button id="export-button" type="button" disabled>Export JSON</button>
         </div>
       </aside>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=racha-care" type="module"></script>
+    <script src="/admin/app.js?v=coffee" type="module"></script>
   </body>
 </html>
