@@ -71,7 +71,7 @@ app.use((error, _req, res, _next) => {
 async function handleEvent(event) {
   const hasReplyToken = typeof event.replyToken === 'string' && event.replyToken.length > 0;
   console.log(
-    `Handling LINE event: type=${event.type}, source=${event.source?.type || 'unknown'}, replyToken=${hasReplyToken}`,
+    `Handling LINE event: type=${event.type}, mode=${event.mode || 'unknown'}, source=${event.source?.type || 'unknown'}, replyToken=${hasReplyToken}`,
   );
 
   if (event.type !== 'message' || event.message?.type !== 'text') {
