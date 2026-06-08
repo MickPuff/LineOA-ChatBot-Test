@@ -69,10 +69,18 @@ app.use((error, _req, res, _next) => {
 });
 
 async function handleEvent(event) {
-  console.log(`Handling LINE event: type=${event.type}, source=${event.source?.type || 'unknown'}`);
+  const hasReplyToken = typeof event.replyToken === 'string' && event.replyToken.length > 0;
+  console.log(
+    `Handling LINE event: type=${event.type}, source=${event.source?.type || 'unknown'}, replyToken=${hasReplyToken}`,
+  );
 
   if (event.type !== 'message' || event.message?.type !== 'text') {
     console.log(`Ignoring unsupported LINE event: type=${event.type}, messageType=${event.message?.type || 'none'}`);
+    return;
+  }
+
+  if (!hasReplyToken) {
+    console.warn('Skipping text message because LINE did not include a reply token.');
     return;
   }
 
