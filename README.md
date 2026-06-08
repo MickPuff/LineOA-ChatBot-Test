@@ -1,13 +1,13 @@
 # LINE OA Gemini Chatbot
 
-A small Node.js webhook service that connects a LINE Official Account to Gemini. It replies to LINE text messages like a chat assistant and keeps short conversation context per LINE user, group, or room.
+A small Node.js webhook service that connects a LINE Official Account to Gemini. It replies to LINE text messages like a chat assistant, stores conversation logs per LINE user, group, or room, and sends only recent context to Gemini.
 
 ## What It Does
 
 - Receives LINE Messaging API webhooks at `POST /webhook`
 - Validates LINE signatures with the official LINE Node SDK
-- Sends the conversation history plus the latest message to Gemini
-- Stores recent context in remote Upstash Redis
+- Sends recent conversation context plus the latest message to Gemini
+- Stores full conversation logs in remote Upstash Redis
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -94,7 +94,8 @@ Use this path if you do not want the bot running on your machine.
 | `GEMINI_API_KEY` | Yes | | Gemini API key from Google AI Studio |
 | `PORT` | No | `3000` | Local HTTP port |
 | `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model ID |
-| `MAX_HISTORY_MESSAGES` | No | `24` | Stored messages per conversation |
+| `MAX_CONTEXT_MESSAGES` | No | value of `MAX_HISTORY_MESSAGES` or `24` | Recent stored messages sent to Gemini as context |
+| `MAX_HISTORY_MESSAGES` | No | `24` | Backward-compatible alias for `MAX_CONTEXT_MESSAGES` |
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |
 | `UPSTASH_REDIS_REST_URL` | Yes for Upstash | | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes for Upstash | | Upstash Redis REST token |

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MemoryConversationStore, getConversationId } from '../src/conversationStore.js';
 
-test('stores and trims conversation history', async () => {
+test('stores full conversation history', async () => {
   const store = new MemoryConversationStore(2);
 
   await store.append('user:1', { role: 'user', text: 'one' });
@@ -10,10 +10,23 @@ test('stores and trims conversation history', async () => {
   await store.append('user:1', { role: 'user', text: 'three' });
 
   assert.deepEqual(await store.getHistory('user:1'), [
+    { role: 'user', text: 'one' },
     { role: 'assistant', text: 'two' },
     { role: 'user', text: 'three' },
   ]);
+});
 
+test('returns only recent history for LLM context', async () => {
+  const store = new MemoryConversationStore(2);
+
+  await store.append('user:1', { role: 'user', text: 'one' });
+  await store.append('user:1', { role: 'assistant', text: 'two' });
+  await store.append('user:1', { role: 'user', text: 'three' });
+
+  assert.deepEqual(await store.getRecentHistory('user:1'), [
+    { role: 'assistant', text: 'two' },
+    { role: 'user', text: 'three' },
+  ]);
 });
 
 test('clears a conversation', async () => {

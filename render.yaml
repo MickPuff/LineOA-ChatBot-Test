@@ -23,7 +23,7 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
-      - key: MAX_HISTORY_MESSAGES
+      - key: MAX_CONTEXT_MESSAGES
         value: "24"
       - key: BOT_SYSTEM_INSTRUCTION
         value: You are a friendly, concise assistant chatting inside LINE. Remember useful details from the conversation and answer naturally.

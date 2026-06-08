@@ -2,14 +2,14 @@ import { Redis } from '@upstash/redis';
 
 export function createConversationStore(config) {
   if (config.storageProvider === 'memory') {
-    return new MemoryConversationStore(config.maxHistoryMessages);
+    return new MemoryConversationStore(config.maxContextMessages);
   }
 
   if (config.storageProvider === 'upstash') {
     return new UpstashConversationStore({
       url: config.upstashRedisRestUrl,
       token: config.upstashRedisRestToken,
-      maxMessages: config.maxHistoryMessages,
+      maxMessages: config.maxContextMessages,
     });
   }
 
@@ -26,9 +26,14 @@ export class MemoryConversationStore {
     return this.conversations.get(conversationId) || [];
   }
 
+  async getRecentHistory(conversationId) {
+    const history = await this.getHistory(conversationId);
+    return history.slice(-this.maxMessages);
+  }
+
   async append(conversationId, message) {
     const history = this.conversations.get(conversationId) || [];
-    const nextHistory = [...history, message].slice(-this.maxMessages);
+    const nextHistory = [...history, message];
     this.conversations.set(conversationId, nextHistory);
     return nextHistory;
   }
@@ -54,9 +59,14 @@ export class UpstashConversationStore {
     return typeof stored === 'string' ? JSON.parse(stored) : stored;
   }
 
+  async getRecentHistory(conversationId) {
+    const history = await this.getHistory(conversationId);
+    return history.slice(-this.maxMessages);
+  }
+
   async append(conversationId, message) {
     const history = await this.getHistory(conversationId);
-    const nextHistory = [...history, message].slice(-this.maxMessages);
+    const nextHistory = [...history, message];
 
     await this.redis.set(this.#key(conversationId), JSON.stringify(nextHistory));
     return nextHistory;

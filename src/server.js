@@ -36,6 +36,7 @@ app.get('/debug/config', (_req, res) => {
     hasGeminiApiKey: Boolean(config.geminiApiKey),
     hasUpstashRedisRestUrl: Boolean(config.upstashRedisRestUrl),
     hasUpstashRedisRestToken: Boolean(config.upstashRedisRestToken),
+    maxContextMessages: config.maxContextMessages,
   });
 });
 
@@ -95,7 +96,7 @@ async function handleEvent(event) {
     return;
   }
 
-  const history = await conversationStore.getHistory(conversationId);
+  const history = await conversationStore.getRecentHistory(conversationId);
 
   await conversationStore.append(conversationId, {
     role: 'user',

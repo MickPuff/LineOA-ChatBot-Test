@@ -24,7 +24,7 @@ export function getConfig() {
     lineChannelSecret: process.env.LINE_CHANNEL_SECRET,
     geminiApiKey: process.env.GEMINI_API_KEY,
     geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxHistoryMessages: Number(process.env.MAX_HISTORY_MESSAGES || 24),
+    maxContextMessages: Number(process.env.MAX_CONTEXT_MESSAGES || process.env.MAX_HISTORY_MESSAGES || 24),
     storageProvider,
     upstashRedisRestUrl: process.env.UPSTASH_REDIS_REST_URL,
     upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN,
