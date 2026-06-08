@@ -8,6 +8,7 @@ A small Node.js webhook service that connects a LINE Official Account to Gemini.
 - Validates LINE signatures with the official LINE Node SDK
 - Sends recent conversation context plus the latest message to Gemini
 - Stores full conversation logs in remote Upstash Redis
+- Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -96,6 +97,7 @@ Use this path if you do not want the bot running on your machine.
 | `GEMINI_MODEL` | No | `gemini-3.1-flash-lite` | Gemini model ID |
 | `MAX_CONTEXT_MESSAGES` | No | value of `MAX_HISTORY_MESSAGES` or `24` | Recent stored messages sent to Gemini as context |
 | `MAX_HISTORY_MESSAGES` | No | `24` | Backward-compatible alias for `MAX_CONTEXT_MESSAGES` |
+| `PROCESSED_EVENT_TTL_SECONDS` | No | `86400` | Seconds to keep LINE webhook event IDs for duplicate detection |
 | `STORAGE_PROVIDER` | No | `upstash` | Use `upstash` for remote persistence or `memory` for temporary local testing |
 | `UPSTASH_REDIS_REST_URL` | Yes for Upstash | | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Yes for Upstash | | Upstash Redis REST token |

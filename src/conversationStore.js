@@ -2,7 +2,7 @@ import { Redis } from '@upstash/redis';
 
 export function createConversationStore(config) {
   if (config.storageProvider === 'memory') {
-    return new MemoryConversationStore(config.maxContextMessages);
+    return new MemoryConversationStore(config.maxContextMessages, config.processedEventTtlSeconds);
   }
 
   if (config.storageProvider === 'upstash') {
@@ -10,6 +10,7 @@ export function createConversationStore(config) {
       url: config.upstashRedisRestUrl,
       token: config.upstashRedisRestToken,
       maxMessages: config.maxContextMessages,
+      processedEventTtlSeconds: config.processedEventTtlSeconds,
     });
   }
 
@@ -17,9 +18,11 @@ export function createConversationStore(config) {
 }
 
 export class MemoryConversationStore {
-  constructor(maxMessages = 24) {
+  constructor(maxMessages = 24, processedEventTtlSeconds = 86400) {
     this.maxMessages = maxMessages;
+    this.processedEventTtlSeconds = processedEventTtlSeconds;
     this.conversations = new Map();
+    this.processedWebhookEvents = new Map();
   }
 
   async getHistory(conversationId) {
@@ -41,12 +44,32 @@ export class MemoryConversationStore {
   async clear(conversationId) {
     this.conversations.delete(conversationId);
   }
+
+  async claimWebhookEvent(webhookEventId) {
+    if (!webhookEventId) {
+      return true;
+    }
+
+    const now = Date.now();
+    const expiresAt = this.processedWebhookEvents.get(webhookEventId);
+
+    if (expiresAt && expiresAt > now) {
+      return false;
+    }
+
+    this.processedWebhookEvents.set(
+      webhookEventId,
+      now + this.processedEventTtlSeconds * 1000,
+    );
+    return true;
+  }
 }
 
 export class UpstashConversationStore {
-  constructor({ url, token, maxMessages = 24 }) {
+  constructor({ url, token, maxMessages = 24, processedEventTtlSeconds = 86400 }) {
     this.redis = new Redis({ url, token });
     this.maxMessages = maxMessages;
+    this.processedEventTtlSeconds = processedEventTtlSeconds;
   }
 
   async getHistory(conversationId) {
@@ -76,8 +99,25 @@ export class UpstashConversationStore {
     await this.redis.del(this.#key(conversationId));
   }
 
+  async claimWebhookEvent(webhookEventId) {
+    if (!webhookEventId) {
+      return true;
+    }
+
+    const result = await this.redis.set(this.#eventKey(webhookEventId), '1', {
+      nx: true,
+      ex: this.processedEventTtlSeconds,
+    });
+
+    return result === 'OK' || result === true;
+  }
+
   #key(conversationId) {
     return `lineoa:conversation:${conversationId}`;
+  }
+
+  #eventKey(webhookEventId) {
+    return `lineoa:webhook-event:${webhookEventId}`;
   }
 }
 

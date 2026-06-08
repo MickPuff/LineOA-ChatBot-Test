@@ -37,6 +37,7 @@ app.get('/debug/config', (_req, res) => {
     hasUpstashRedisRestUrl: Boolean(config.upstashRedisRestUrl),
     hasUpstashRedisRestToken: Boolean(config.upstashRedisRestToken),
     maxContextMessages: config.maxContextMessages,
+    processedEventTtlSeconds: config.processedEventTtlSeconds,
   });
 });
 
@@ -71,8 +72,10 @@ app.use((error, _req, res, _next) => {
 
 async function handleEvent(event) {
   const hasReplyToken = typeof event.replyToken === 'string' && event.replyToken.length > 0;
+  const webhookEventId = event.webhookEventId || 'none';
+  const isRedelivery = Boolean(event.deliveryContext?.isRedelivery);
   console.log(
-    `Handling LINE event: type=${event.type}, mode=${event.mode || 'unknown'}, source=${event.source?.type || 'unknown'}, replyToken=${hasReplyToken}`,
+    `Handling LINE event: type=${event.type}, mode=${event.mode || 'unknown'}, source=${event.source?.type || 'unknown'}, replyToken=${hasReplyToken}, redelivery=${isRedelivery}, eventId=${webhookEventId}`,
   );
 
   if (event.type !== 'message' || event.message?.type !== 'text') {
@@ -82,6 +85,13 @@ async function handleEvent(event) {
 
   if (!hasReplyToken) {
     console.warn('Skipping text message because LINE did not include a reply token.');
+    return;
+  }
+
+  const didClaimEvent = await conversationStore.claimWebhookEvent(event.webhookEventId);
+
+  if (!didClaimEvent) {
+    console.warn(`Skipping duplicate LINE webhook event: eventId=${webhookEventId}`);
     return;
   }
 

@@ -39,6 +39,15 @@ test('clears a conversation', async () => {
 
 });
 
+test('claims webhook events once for duplicate detection', async () => {
+  const store = new MemoryConversationStore(4);
+
+  assert.equal(await store.claimWebhookEvent('event-1'), true);
+  assert.equal(await store.claimWebhookEvent('event-1'), false);
+  assert.equal(await store.claimWebhookEvent('event-2'), true);
+  assert.equal(await store.claimWebhookEvent(), true);
+});
+
 test('builds stable LINE conversation ids', () => {
   assert.equal(getConversationId({ userId: 'U123' }), 'user:U123');
   assert.equal(getConversationId({ groupId: 'G123' }), 'group:G123');
