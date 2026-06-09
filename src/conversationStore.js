@@ -255,7 +255,7 @@ export class UpstashConversationStore {
   }
 }
 
-function summarizeConversation(conversationId, history, settings = {}) {
+export function summarizeConversation(conversationId, history, settings = {}) {
   const messages = Array.isArray(history) ? history : [];
   const lastMessage = messages.at(-1);
   const firstMessage = messages[0];

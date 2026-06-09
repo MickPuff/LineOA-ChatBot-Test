@@ -9,7 +9,11 @@ import {
   middleware,
 } from '@line/bot-sdk';
 import { getConfig } from './config.js';
-import { createConversationStore, getConversationId } from './conversationStore.js';
+import {
+  createConversationStore,
+  getConversationId,
+  summarizeConversation,
+} from './conversationStore.js';
 import { GeminiChat } from './geminiChat.js';
 
 const config = getConfig();
@@ -25,6 +29,7 @@ const geminiChat = new GeminiChat({
   apiKey: config.geminiApiKey,
   model: config.geminiModel,
 });
+const adminEventClients = new Set();
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -58,6 +63,33 @@ app.use('/admin', requireAdmin, express.static(adminPublicPath, {
   index: false,
   redirect: false,
 }));
+
+app.get('/api/admin/events', requireAdmin, (req, res) => {
+  res.set({
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'Content-Type': 'text/event-stream',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+  res.write('retry: 5000\n\n');
+
+  const client = {
+    id: crypto.randomUUID(),
+    res,
+  };
+  const heartbeat = setInterval(() => {
+    sendServerEvent(client, 'heartbeat', { at: new Date().toISOString() });
+  }, 25000);
+
+  adminEventClients.add(client);
+  sendServerEvent(client, 'connected', { at: new Date().toISOString() });
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    adminEventClients.delete(client);
+  });
+});
 
 app.use('/api/admin', requireAdmin, express.json({ limit: '32kb' }));
 
@@ -105,6 +137,12 @@ app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, asy
       aiEnabled,
     });
 
+    broadcastAdminEvent('conversation-settings-updated', {
+      conversationId,
+      settings,
+      at: new Date().toISOString(),
+    });
+
     res.json({ ok: true, conversationId, settings });
   } catch (error) {
     next(error);
@@ -141,9 +179,17 @@ app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, asyn
       to,
       messages: [{ type: 'text', text: truncateLineText(text) }],
     });
-    await conversationStore.append(conversationId, message);
+    const history = await conversationStore.append(conversationId, message);
+    const settings = await conversationStore.getConversationSettings(conversationId);
+    const conversation = summarizeConversation(conversationId, history, settings);
 
-    res.json({ ok: true, conversationId, message });
+    broadcastAdminEvent('conversation-updated', {
+      conversation,
+      message,
+      source: 'admin',
+    });
+
+    res.json({ ok: true, conversationId, conversation, message });
   } catch (error) {
     next(error);
   }
@@ -182,6 +228,11 @@ app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
     }
 
     const settings = await conversationStore.updateBotSettings({ systemInstruction });
+
+    broadcastAdminEvent('settings-updated', {
+      settings,
+      at: new Date().toISOString(),
+    });
 
     res.json({
       ok: true,
@@ -252,6 +303,10 @@ async function handleEvent(event) {
 
   if (isResetCommand(userText)) {
     await conversationStore.clear(conversationId);
+    broadcastAdminEvent('conversation-cleared', {
+      conversationId,
+      at: new Date().toISOString(),
+    });
     await replyToLine(event.replyToken, 'Done. I cleared our conversation context.');
     console.log(`Reset conversation context: conversation=${conversationId}`);
     return;
@@ -259,13 +314,23 @@ async function handleEvent(event) {
 
   const history = await conversationStore.getRecentHistory(conversationId);
 
-  await conversationStore.append(conversationId, {
+  const userMessage = {
     role: 'user',
     text: userText,
     at: new Date().toISOString(),
-  });
+  };
+  const historyWithUserMessage = await conversationStore.append(conversationId, userMessage);
 
   const conversationSettings = await conversationStore.getConversationSettings(conversationId);
+  broadcastAdminEvent('conversation-updated', {
+    conversation: summarizeConversation(
+      conversationId,
+      historyWithUserMessage,
+      conversationSettings,
+    ),
+    message: userMessage,
+    source: 'line',
+  });
 
   if (!conversationSettings.aiEnabled) {
     console.log(`AI disabled for conversation: conversation=${conversationId}`);
@@ -285,10 +350,24 @@ async function handleEvent(event) {
     assistantText = 'Sorry, I could not reach Gemini right now. Please try again in a moment.';
   }
 
-  await conversationStore.append(conversationId, {
+  const assistantMessage = {
     role: 'assistant',
     text: assistantText,
     at: new Date().toISOString(),
+  };
+  const historyWithAssistantMessage = await conversationStore.append(
+    conversationId,
+    assistantMessage,
+  );
+
+  broadcastAdminEvent('conversation-updated', {
+    conversation: summarizeConversation(
+      conversationId,
+      historyWithAssistantMessage,
+      conversationSettings,
+    ),
+    message: assistantMessage,
+    source: 'ai',
   });
 
   await replyToLine(event.replyToken, assistantText);
@@ -381,6 +460,22 @@ async function getEffectiveBotSettings() {
 
 function truncateLineText(text) {
   return text.length > 4900 ? `${text.slice(0, 4890)}\n...` : text;
+}
+
+function broadcastAdminEvent(event, payload) {
+  for (const client of adminEventClients) {
+    sendServerEvent(client, event, payload);
+  }
+}
+
+function sendServerEvent(client, event, payload) {
+  try {
+    client.res.write(`event: ${event}\n`);
+    client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  } catch (error) {
+    console.warn(`Failed to send admin SSE event: client=${client.id}`, error);
+    adminEventClients.delete(client);
+  }
 }
 
 app.listen(config.port, () => {

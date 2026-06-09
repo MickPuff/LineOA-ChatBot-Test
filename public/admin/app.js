@@ -6,13 +6,13 @@ const state = {
   activeFilter: 'all',
   currentPage: getCurrentPage(),
   settings: null,
+  eventSource: null,
+  hasConnectedEvents: false,
   hasLoadedConversations: false,
   isLoadingConversations: false,
   seenUserMessageCounts: new Map(),
   unreadUserMessageCounts: new Map(),
 };
-
-const AUTO_REFRESH_MS = 4000;
 
 const elements = {
   list: document.querySelector('#conversation-list'),
@@ -75,8 +75,7 @@ renderCurrentPage();
 updateComposerState();
 
 if (state.currentPage === 'inbox') {
-  loadConversations();
-  window.setInterval(() => loadConversations({ silent: true }), AUTO_REFRESH_MS);
+  loadConversations().finally(() => connectAdminEvents());
 }
 
 if (state.currentPage === 'settings') {
@@ -116,6 +115,148 @@ async function loadConversations({ silent = false } = {}) {
     }
   } finally {
     state.isLoadingConversations = false;
+  }
+}
+
+function connectAdminEvents() {
+  if (!window.EventSource || state.eventSource) {
+    return;
+  }
+
+  const eventSource = new EventSource('/api/admin/events');
+  state.eventSource = eventSource;
+
+  eventSource.addEventListener('connected', () => {
+    if (state.hasConnectedEvents && state.hasLoadedConversations) {
+      loadConversations({ silent: true });
+    }
+
+    state.hasConnectedEvents = true;
+  });
+
+  eventSource.addEventListener('conversation-updated', (event) => {
+    applyConversationUpdate(parseEventData(event));
+  });
+
+  eventSource.addEventListener('conversation-cleared', (event) => {
+    applyConversationCleared(parseEventData(event));
+  });
+
+  eventSource.addEventListener('conversation-settings-updated', (event) => {
+    applyConversationSettingsUpdate(parseEventData(event));
+  });
+
+  eventSource.addEventListener('error', () => {
+    showToast('Live updates disconnected. Reconnecting...');
+  });
+}
+
+function applyConversationUpdate(payload) {
+  if (!payload?.conversation?.conversationId) {
+    return;
+  }
+
+  const conversationId = payload.conversation.conversationId;
+
+  mergeConversation(payload.conversation);
+
+  if (
+    state.selectedConversationId === conversationId &&
+    payload.message &&
+    !hasSelectedMessage(payload.message)
+  ) {
+    state.selectedMessages = [...state.selectedMessages, payload.message];
+    markConversationRead(conversationId);
+    renderSelectedConversation();
+  }
+}
+
+function applyConversationCleared(payload) {
+  const conversationId = payload?.conversationId;
+
+  if (!conversationId) {
+    return;
+  }
+
+  state.conversations = state.conversations.filter(
+    (conversation) => conversation.conversationId !== conversationId,
+  );
+  state.seenUserMessageCounts.delete(conversationId);
+  state.unreadUserMessageCounts.delete(conversationId);
+  updateMetricsFromState();
+
+  if (state.selectedConversationId === conversationId) {
+    clearSelection();
+  } else {
+    filterConversations();
+  }
+}
+
+function applyConversationSettingsUpdate(payload) {
+  const conversationId = payload?.conversationId;
+
+  if (!conversationId || typeof payload.settings?.aiEnabled !== 'boolean') {
+    return;
+  }
+
+  state.conversations = state.conversations.map((conversation) =>
+    conversation.conversationId === conversationId
+      ? { ...conversation, aiEnabled: payload.settings.aiEnabled }
+      : conversation,
+  );
+
+  filterConversations();
+
+  if (state.selectedConversationId === conversationId) {
+    updateSelectedAiToggle(
+      state.conversations.find((conversation) => conversation.conversationId === conversationId),
+    );
+  }
+}
+
+function mergeConversation(conversation) {
+  const conversationId = conversation.conversationId;
+  const previousUserMessages = state.seenUserMessageCounts.get(conversationId);
+  const currentUserMessages = conversation.userMessageCount || 0;
+  const existingIndex = state.conversations.findIndex(
+    (item) => item.conversationId === conversationId,
+  );
+
+  if (existingIndex >= 0) {
+    state.conversations.splice(existingIndex, 1, conversation);
+  } else {
+    state.conversations.push(conversation);
+  }
+
+  state.conversations.sort(sortConversationSummaries);
+
+  if (conversationId === state.selectedConversationId) {
+    state.seenUserMessageCounts.set(conversationId, currentUserMessages);
+    state.unreadUserMessageCounts.set(conversationId, 0);
+  } else if (previousUserMessages === undefined) {
+    state.seenUserMessageCounts.set(conversationId, currentUserMessages);
+    state.unreadUserMessageCounts.set(conversationId, currentUserMessages);
+  } else {
+    if (currentUserMessages > previousUserMessages) {
+      const currentUnread = state.unreadUserMessageCounts.get(conversationId) || 0;
+      state.unreadUserMessageCounts.set(
+        conversationId,
+        currentUnread + currentUserMessages - previousUserMessages,
+      );
+    }
+
+    state.seenUserMessageCounts.set(conversationId, currentUserMessages);
+  }
+
+  updateMetricsFromState();
+  filterConversations();
+}
+
+function parseEventData(event) {
+  try {
+    return JSON.parse(event.data);
+  } catch {
+    return null;
   }
 }
 
@@ -356,7 +497,7 @@ async function sendAdminReply() {
   elements.adminReplyInput.disabled = true;
 
   try {
-    await fetchJson(`/api/admin/conversations/${encodeURIComponent(state.selectedConversationId)}/messages`, {
+    const data = await fetchJson(`/api/admin/conversations/${encodeURIComponent(state.selectedConversationId)}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -364,8 +505,8 @@ async function sendAdminReply() {
       body: JSON.stringify({ text }),
     });
     elements.adminReplyInput.value = '';
+    applyConversationUpdate(data);
     showToast('Admin reply sent to LINE and saved.');
-    await loadConversations();
   } catch (error) {
     showToast(error.message || 'Could not send admin reply.');
   } finally {
@@ -507,6 +648,10 @@ function updateMetrics(totals = {}) {
   );
 }
 
+function updateMetricsFromState() {
+  updateMetrics({ conversations: state.conversations.length });
+}
+
 function updateUnreadState(conversations) {
   for (const conversation of conversations) {
     const id = conversation.conversationId;
@@ -546,6 +691,15 @@ function updateUnreadState(conversations) {
   }
 
   state.hasLoadedConversations = true;
+}
+
+function hasSelectedMessage(message) {
+  return state.selectedMessages.some((existingMessage) =>
+    existingMessage.role === message.role &&
+    existingMessage.text === message.text &&
+    existingMessage.at === message.at &&
+    (existingMessage.from || '') === (message.from || ''),
+  );
 }
 
 function getUnreadCount(conversationId) {
@@ -592,6 +746,12 @@ function isFollowUpConversation(conversation) {
   }
 
   return Date.now() - Date.parse(conversation.lastAt) > 24 * 60 * 60 * 1000;
+}
+
+function sortConversationSummaries(left, right) {
+  const leftTime = left.lastAt ? Date.parse(left.lastAt) : 0;
+  const rightTime = right.lastAt ? Date.parse(right.lastAt) : 0;
+  return rightTime - leftTime;
 }
 
 function renderCurrentPage() {

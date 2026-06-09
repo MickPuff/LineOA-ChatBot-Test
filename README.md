@@ -12,6 +12,7 @@ A small Node.js webhook service that connects a LINE Official Account to Gemini.
 - Provides a password-protected admin page at `GET /admin`
 - Lets admins edit the bot system prompt from `/admin/settings`; the prompt is saved in Redis
 - Lets admins disable AI replies for individual LINE conversations
+- Streams live inbox updates to the admin page with server-sent events, avoiding timer-based Redis polling
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -141,3 +142,5 @@ If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot fo
 The admin page reads conversation logs and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
 
 AI can be disabled per customer from the inbox. When AI is disabled for a conversation, incoming LINE messages are still saved to Redis, but the server does not call Gemini or send an automatic reply.
+
+The inbox performs one initial Redis-backed load, then opens `/api/admin/events` for live updates. New LINE messages and admin replies are pushed over that stream, so the browser no longer rereads the full conversation list every few seconds. If the stream reconnects after a Render restart or network drop, the browser performs one recovery refresh.
