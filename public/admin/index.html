@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=website-channel">
+    <link rel="stylesheet" href="/admin/styles.css?v=line-profile">
   </head>
   <body>
     <div class="app-shell">
@@ -98,7 +98,7 @@
         <main class="chat-panel">
           <header class="chat-topbar">
             <div class="chat-person">
-              <div class="avatar large">?</div>
+              <div id="conversation-avatar" class="avatar large">?</div>
               <div>
                 <h2 id="conversation-title">Select a customer</h2>
                 <p id="conversation-meta">No conversation selected</p>
@@ -134,7 +134,7 @@
           </header>
 
           <section class="customer-card">
-            <div class="avatar profile">?</div>
+            <div id="detail-avatar" class="avatar profile">?</div>
             <h2 id="detail-title">New Customer</h2>
             <span id="detail-channel-tag" class="tag">Coffee lead</span>
             <label class="ai-toggle">
@@ -244,6 +244,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=website-channel" type="module"></script>
+    <script src="/admin/app.js?v=line-profile" type="module"></script>
   </body>
 </html>

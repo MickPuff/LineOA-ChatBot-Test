@@ -34,6 +34,7 @@ const geminiChat = new GeminiChat({
 });
 const adminEventClients = new Set();
 const testUserEventClients = new Map();
+const LINE_PROFILE_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -425,6 +426,8 @@ async function handleEvent(event) {
   const conversationId = getConversationId(event.source);
   console.log(`Handling text message: conversation=${conversationId}, chars=${userText.length}`);
 
+  await ensureLineConversationSettings(conversationId, event.source);
+
   await handleCustomerText({
     conversationId,
     userText,
@@ -572,6 +575,74 @@ async function ensureWebsiteConversationSettings(conversationId, { displayName }
   }
 
   return currentSettings;
+}
+
+async function ensureLineConversationSettings(conversationId, source = {}) {
+  const currentSettings = await conversationStore.getConversationSettings(conversationId);
+  const patch = {
+    channel: 'line',
+  };
+
+  if (shouldRefreshLineProfile(currentSettings)) {
+    try {
+      const profile = await fetchLineProfile(source);
+
+      if (profile?.displayName) {
+        patch.displayName = profile.displayName;
+      }
+
+      if (typeof profile?.pictureUrl === 'string') {
+        patch.profilePictureUrl = profile.pictureUrl;
+      }
+
+      patch.profileUpdatedAt = new Date().toISOString();
+    } catch (error) {
+      console.warn(
+        `Could not fetch LINE profile: conversation=${conversationId}, user=${source.userId || 'unknown'}`,
+        error,
+      );
+    }
+  }
+
+  if (!hasSettingsPatchChanges(currentSettings, patch)) {
+    return currentSettings;
+  }
+
+  return conversationStore.updateConversationSettings(conversationId, patch);
+}
+
+async function fetchLineProfile(source = {}) {
+  if (source.groupId && source.userId) {
+    return lineClient.getGroupMemberProfile(source.groupId, source.userId);
+  }
+
+  if (source.roomId && source.userId) {
+    return lineClient.getRoomMemberProfile(source.roomId, source.userId);
+  }
+
+  if (source.userId) {
+    return lineClient.getProfile(source.userId);
+  }
+
+  return null;
+}
+
+function shouldRefreshLineProfile(settings) {
+  if (!settings.displayName || !settings.profileUpdatedAt) {
+    return true;
+  }
+
+  const profileUpdatedAt = Date.parse(settings.profileUpdatedAt);
+
+  if (Number.isNaN(profileUpdatedAt)) {
+    return true;
+  }
+
+  return Date.now() - profileUpdatedAt > LINE_PROFILE_REFRESH_MS;
+}
+
+function hasSettingsPatchChanges(settings, patch) {
+  return Object.entries(patch).some(([key, value]) => settings[key] !== value);
 }
 
 function buildLlmSystemInstruction(systemInstruction, conversationId, settings) {

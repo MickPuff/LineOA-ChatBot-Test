@@ -7,6 +7,7 @@ A small Node.js service that connects a LINE Official Account and a test website
 - Receives LINE Messaging API webhooks at `POST /webhook`
 - Provides a public test customer page at `GET /testuser`
 - Validates LINE signatures with the official LINE Node SDK
+- Caches LINE customer display names and profile pictures in Redis after incoming messages
 - Sends recent conversation context, channel, display name, and admin tags to Gemini
 - Stores full conversation logs in remote Upstash Redis
 - Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
@@ -47,7 +48,9 @@ Use this path if you do not want the bot running on your machine.
 
 5. Enable webhooks in the LINE Developers Console.
 
-6. Open the admin page at:
+6. Have each LINE customer send the Official Account at least one message. The server uses that incoming LINE event to fetch and cache their display name and profile picture.
+
+7. Open the admin page at:
 
    ```text
    https://your-render-service.onrender.com/admin
@@ -57,7 +60,7 @@ Use this path if you do not want the bot running on your machine.
 
    If the browser keeps asking for credentials, confirm that `ADMIN_PASSWORD` is set in Render and that you are entering `admin` as the username unless you changed `ADMIN_USERNAME`.
 
-7. To customize the bot personality, open:
+8. To customize the bot personality, open:
 
    ```text
    https://your-render-service.onrender.com/admin/settings
@@ -65,7 +68,7 @@ Use this path if you do not want the bot running on your machine.
 
    Save the system prompt there. It is stored in Redis, so you do not need to edit Render environment variables for prompt changes.
 
-8. To test the website channel, open:
+9. To test the website channel, open:
 
    ```text
    https://your-render-service.onrender.com/testuser
@@ -158,6 +161,8 @@ If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot fo
 
 The admin page reads conversation logs, customer tags, AI handoff settings, and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
 
+LINE profile names and pictures are fetched with the existing `LINE_CHANNEL_ACCESS_TOKEN`, then cached in each conversation's Redis settings. They refresh after about 24 hours when that customer sends another message. Existing LINE conversations without cached profile data will keep showing the fallback avatar until the customer messages the bot again.
+
 AI can be disabled per customer from the inbox. When AI is disabled for a conversation, incoming LINE or website messages are still saved to Redis, but the server does not call Gemini or send an automatic reply.
 
 The inbox performs one initial Redis-backed load, then opens `/api/admin/events` for live updates. New LINE messages, website messages, AI replies, admin replies, and settings changes are pushed over that stream, so the browser no longer rereads the full conversation list every few seconds. If the stream reconnects after a Render restart or network drop, the browser performs one recovery refresh.
@@ -171,7 +176,7 @@ Conversation IDs are channel-prefixed:
 Redis keys include:
 
 - `lineoa:conversation:<conversationId>` for full transcripts
-- `lineoa:conversation-settings:<conversationId>` for AI enabled state, channel, display name, and tags
+- `lineoa:conversation-settings:<conversationId>` for AI enabled state, channel, display name, profile picture URL, and tags
 - `lineoa:conversation-index` for conversation discovery
 - `lineoa:bot-settings` for the runtime system prompt
 - `lineoa:webhook-event:<eventId>` for temporary LINE duplicate detection

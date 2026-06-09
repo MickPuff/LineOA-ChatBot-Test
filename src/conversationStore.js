@@ -275,6 +275,8 @@ export function summarizeConversation(conversationId, history, settings = {}) {
     lastText: lastMessage?.text || '',
     title: normalizedSettings.displayName || latestUserMessage?.text || conversationId,
     aiEnabled: normalizedSettings.aiEnabled,
+    profilePictureUrl: normalizedSettings.profilePictureUrl,
+    profileUpdatedAt: normalizedSettings.profileUpdatedAt,
     tags: normalizedSettings.tags,
   };
 }
@@ -288,6 +290,14 @@ function normalizeConversationSettings(settings) {
     displayName:
       typeof normalized.displayName === 'string'
         ? normalized.displayName.trim().slice(0, 80)
+        : '',
+    profilePictureUrl:
+      typeof normalized.profilePictureUrl === 'string'
+        ? normalized.profilePictureUrl.trim().slice(0, 500)
+        : '',
+    profileUpdatedAt:
+      typeof normalized.profileUpdatedAt === 'string'
+        ? normalized.profileUpdatedAt.trim()
         : '',
     tags: normalizeTags(normalized.tags),
   };

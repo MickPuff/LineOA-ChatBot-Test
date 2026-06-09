@@ -22,6 +22,7 @@ const elements = {
   emptyState: document.querySelector('#empty-state'),
   title: document.querySelector('#conversation-title'),
   meta: document.querySelector('#conversation-meta'),
+  conversationAvatar: document.querySelector('#conversation-avatar'),
   filterButtons: [...document.querySelectorAll('.queue-tabs button[data-filter]')],
   navButtons: [...document.querySelectorAll('.nav-item')],
   adminReplyInput: document.querySelector('#admin-reply-input'),
@@ -43,6 +44,7 @@ const elements = {
   detailAssistantCount: document.querySelector('#detail-assistant-count'),
   detailLastAt: document.querySelector('#detail-last-at'),
   detailChannelTag: document.querySelector('#detail-channel-tag'),
+  detailAvatar: document.querySelector('#detail-avatar'),
   detailTags: document.querySelector('#detail-tags'),
   tagInput: document.querySelector('#tag-input'),
   saveTagsButton: document.querySelector('#save-tags-button'),
@@ -325,7 +327,7 @@ function renderConversationList() {
 
     const avatar = document.createElement('div');
     avatar.className = `avatar${unreadCount > 0 ? ' has-unread' : ''}`;
-    avatar.textContent = '?';
+    setAvatar(avatar, conversation);
 
     const body = document.createElement('div');
     body.className = 'conversation-main';
@@ -414,6 +416,8 @@ function renderSelectedConversation() {
   elements.title.textContent = displayName;
   elements.meta.textContent = `${state.selectedMessages.length} saved messages`;
   elements.detailTitle.textContent = displayName;
+  setAvatar(elements.conversationAvatar, summary);
+  setAvatar(elements.detailAvatar, summary);
 
   elements.detailId.textContent = state.selectedConversationId;
   elements.detailCount.textContent = String(state.selectedMessages.length);
@@ -501,6 +505,8 @@ function clearSelection() {
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
   elements.detailChannelTag.textContent = 'Coffee lead';
+  setAvatar(elements.conversationAvatar, null);
+  setAvatar(elements.detailAvatar, null);
   elements.detailTags.replaceChildren();
   elements.tagInput.value = '';
   elements.tagInput.disabled = true;
@@ -1023,20 +1029,64 @@ function getConversationDisplayName(conversation) {
   }
 
   const id = conversation.conversationId || '';
+  const title = conversation.title && conversation.title !== id ? conversation.title : '';
 
   if (id.startsWith('website:')) {
-    return conversation.title && conversation.title !== id ? conversation.title : 'Website Customer';
+    return title || 'Website Customer';
   }
 
   if (id.startsWith('group:')) {
-    return 'Coffee Group';
+    return title || 'Coffee Group';
   }
 
   if (id.startsWith('room:')) {
-    return 'Coffee Chat Room';
+    return title || 'Coffee Chat Room';
   }
 
-  return 'New Customer';
+  return title || 'New Customer';
+}
+
+function setAvatar(avatar, conversation) {
+  if (!avatar) {
+    return;
+  }
+
+  const displayName = getConversationDisplayName(conversation);
+  const fallback = getAvatarFallback(displayName);
+
+  avatar.classList.remove('with-image');
+  avatar.replaceChildren();
+
+  if (conversation?.profilePictureUrl) {
+    const image = document.createElement('img');
+    image.src = conversation.profilePictureUrl;
+    image.alt = `${displayName} profile picture`;
+    image.loading = 'lazy';
+    image.referrerPolicy = 'no-referrer';
+    image.addEventListener('error', () => {
+      if (image.parentElement !== avatar) {
+        return;
+      }
+
+      avatar.classList.remove('with-image');
+      avatar.textContent = fallback;
+    });
+    avatar.classList.add('with-image');
+    avatar.append(image);
+    return;
+  }
+
+  avatar.textContent = fallback;
+}
+
+function getAvatarFallback(displayName) {
+  const normalized = String(displayName || '').trim();
+
+  if (!normalized || normalized === 'New Customer') {
+    return '?';
+  }
+
+  return normalized[0].toUpperCase();
 }
 
 function getConversationChannel(conversation) {

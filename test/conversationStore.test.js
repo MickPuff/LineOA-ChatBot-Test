@@ -66,6 +66,8 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'new reply',
       title: 'new chat',
       aiEnabled: true,
+      profilePictureUrl: '',
+      profileUpdatedAt: '',
       tags: [],
     },
     {
@@ -80,6 +82,8 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'old chat',
       title: 'old chat',
       aiEnabled: true,
+      profilePictureUrl: '',
+      profileUpdatedAt: '',
       tags: [],
     },
   ]);
@@ -92,6 +96,8 @@ test('stores conversation AI settings and tags', async () => {
     aiEnabled: true,
     channel: '',
     displayName: '',
+    profilePictureUrl: '',
+    profileUpdatedAt: '',
     tags: [],
   });
 
@@ -99,6 +105,8 @@ test('stores conversation AI settings and tags', async () => {
     aiEnabled: false,
     channel: 'website',
     displayName: 'Mick',
+    profilePictureUrl: 'https://profile.line-scdn.net/mick',
+    profileUpdatedAt: '2026-06-09T01:00:00.000Z',
     tags: ['espresso', 'espresso', 'gift buyer'],
   });
 
@@ -106,6 +114,8 @@ test('stores conversation AI settings and tags', async () => {
     aiEnabled: false,
     channel: 'website',
     displayName: 'Mick',
+    profilePictureUrl: 'https://profile.line-scdn.net/mick',
+    profileUpdatedAt: '2026-06-09T01:00:00.000Z',
     tags: ['espresso', 'gift buyer'],
   });
 });

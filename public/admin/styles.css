@@ -433,6 +433,23 @@ p {
   background: var(--green);
 }
 
+.avatar.with-image {
+  color: transparent;
+}
+
+.avatar.with-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar.with-image::after {
+  z-index: 1;
+}
+
 .avatar.large {
   width: 54px;
   height: 54px;
