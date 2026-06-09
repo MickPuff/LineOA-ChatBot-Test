@@ -242,7 +242,7 @@ function createPerformanceWidget(usage) {
 }
 
 function getSenderLabel(message) {
-  return message.from === 'admin' ? 'Admin' : 'AI coffee seller';
+  return message.from === 'admin' ? 'Admin' : 'AI gold seller';
 }
 
 async function fetchJson(url, options = {}) {

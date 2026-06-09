@@ -32,6 +32,7 @@ const elements = {
   exportButton: document.querySelector('#export-button'),
   detailAiToggle: document.querySelector('#detail-ai-toggle'),
   detailAiLabel: document.querySelector('#detail-ai-label'),
+  detailBotSelectWrap: document.querySelector('#detail-bot-select-wrap'),
   detailBotSelect: document.querySelector('#detail-bot-select'),
   toast: document.querySelector('#toast'),
   pages: [...document.querySelectorAll('.page[data-page]')],
@@ -353,7 +354,7 @@ function renderConversationList() {
 
     const preview = document.createElement('div');
     preview.className = 'conversation-preview';
-    preview.textContent = conversation.lastText || 'No saved coffee request yet';
+    preview.textContent = conversation.lastText || 'No saved gold request yet';
 
     const tags = document.createElement('div');
     tags.className = 'conversation-tags';
@@ -365,21 +366,21 @@ function renderConversationList() {
     badge.className = `badge unread-badge${unreadCount > 0 ? ' has-unread' : ''}`;
     badge.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'Read';
 
+    const aiEnabled = conversation.aiEnabled !== false;
     const aiButton = document.createElement('button');
     aiButton.type = 'button';
-    aiButton.className = `mini-toggle${conversation.aiEnabled === false ? ' is-off' : ''}`;
-    aiButton.textContent = conversation.aiEnabled === false ? 'AI off' : 'AI on';
+    aiButton.className = aiEnabled
+      ? `mini-toggle bot-badge ${getBotId(conversation)}`
+      : 'mini-toggle is-off';
+    aiButton.textContent = aiEnabled ? getBotLabel(conversation.botId) : 'AI off';
+    aiButton.title = aiEnabled ? 'Disable AI for this customer' : 'Enable AI for this customer';
     aiButton.addEventListener('click', (event) => {
       event.stopPropagation();
       updateConversationAi(conversation.conversationId, conversation.aiEnabled === false);
     });
 
-    const botBadge = document.createElement('span');
-    botBadge.className = `badge bot-badge ${getBotId(conversation)}`;
-    botBadge.textContent = getBotLabel(conversation.botId);
-
     topRow.append(title, time);
-    tags.append(dot, badge, aiButton, botBadge);
+    tags.append(dot, badge, aiButton);
 
     for (const tag of conversation.tags || []) {
       const tagBadge = document.createElement('span');
@@ -512,8 +513,8 @@ function clearSelection() {
   elements.detailUserCount.textContent = '-';
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
-  elements.detailChannelTag.textContent = 'Coffee lead';
-  elements.chatBotStatus.textContent = 'AI - Coffee Seller';
+  elements.detailChannelTag.textContent = 'Gold lead';
+  elements.chatBotStatus.textContent = 'AI - Gold Seller';
   setAvatar(elements.conversationAvatar, null);
   setAvatar(elements.detailAvatar, null);
   elements.detailTags.replaceChildren();
@@ -525,6 +526,7 @@ function clearSelection() {
   elements.detailAiLabel.textContent = 'AI enabled';
   elements.detailBotSelect.value = 'tagAware';
   elements.detailBotSelect.disabled = true;
+  elements.detailBotSelectWrap.hidden = true;
   updateComposerState();
   renderConversationList();
 }
@@ -682,9 +684,10 @@ function updateSelectedConversationDetails(summary) {
   elements.detailAiToggle.disabled = !state.selectedConversationId;
   elements.detailAiToggle.checked = aiEnabled;
   elements.detailAiLabel.textContent = aiEnabled ? 'AI enabled' : 'AI disabled';
-  elements.detailBotSelect.disabled = !state.selectedConversationId;
+  elements.detailBotSelectWrap.hidden = !aiEnabled;
+  elements.detailBotSelect.disabled = !state.selectedConversationId || !aiEnabled;
   elements.detailBotSelect.value = getBotId({ botId });
-  elements.chatBotStatus.textContent = `AI - ${getBotLabel(botId)}`;
+  elements.chatBotStatus.textContent = aiEnabled ? `AI - ${getBotLabel(botId)}` : 'AI disabled';
   elements.detailChannelTag.textContent = getChannelLabel(channel);
   elements.tagInput.disabled = !state.selectedConversationId;
   elements.saveTagsButton.disabled = !state.selectedConversationId;
@@ -1097,11 +1100,11 @@ function getConversationDisplayName(conversation) {
   }
 
   if (id.startsWith('group:')) {
-    return title || 'Coffee Group';
+    return title || 'Gold Group';
   }
 
   if (id.startsWith('room:')) {
-    return title || 'Coffee Chat Room';
+    return title || 'Gold Chat Room';
   }
 
   return title || 'New Customer';

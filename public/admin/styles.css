@@ -8,8 +8,8 @@
   --ink: #172033;
   --muted: #8b95a8;
   --muted-strong: #637087;
-  --orange: #ff6b1a;
-  --orange-soft: #fff1e9;
+  --orange: #c98a10;
+  --orange-soft: #fff6df;
   --green: #06c755;
   --green-soft: #dcfae9;
   --blue-soft: #eaf2ff;
@@ -105,12 +105,12 @@ button {
 }
 
 .brand-mark {
-  background: linear-gradient(135deg, #ff8a28, var(--orange));
-  box-shadow: 0 8px 18px rgba(255, 107, 26, 0.25);
+  background: linear-gradient(135deg, #f7c95f, var(--orange));
+  box-shadow: 0 8px 18px rgba(201, 138, 16, 0.25);
 }
 
 .operator-avatar {
-  background: #ff8547;
+  background: #d2a23a;
 }
 
 .account-avatar {
@@ -257,9 +257,9 @@ p {
 }
 
 .prototype-pill {
-  border: 1px solid #ffd5bd;
+  border: 1px solid #f3d38b;
   border-radius: 999px;
-  background: #fff8f3;
+  background: #fffaf0;
   color: var(--orange);
   padding: 7px 11px;
   font-size: 12px;
@@ -393,9 +393,9 @@ p {
 
 .conversation-item.active,
 .conversation-item:hover {
-  border-color: #ffd0b8;
-  background: #fff7f1;
-  box-shadow: 0 10px 24px rgba(255, 107, 26, 0.1);
+  border-color: #efd18a;
+  background: #fffaf0;
+  box-shadow: 0 10px 24px rgba(201, 138, 16, 0.1);
 }
 
 .conversation-item.active {
@@ -452,8 +452,8 @@ p {
 
 .channel-icon {
   position: absolute;
-  right: -5px;
-  bottom: -3px;
+  right: -9px;
+  bottom: -8px;
   z-index: 3;
   display: grid;
   place-items: center;
@@ -483,8 +483,8 @@ p {
 }
 
 .avatar.profile .channel-icon {
-  right: -2px;
-  bottom: 2px;
+  right: -7px;
+  bottom: -5px;
   min-width: 34px;
   height: 34px;
   font-size: 9px;
@@ -607,6 +607,16 @@ p {
   color: #7d8797;
 }
 
+.mini-toggle.bot-badge.baseline {
+  background: #fff4e0;
+  color: #9a6405;
+}
+
+.mini-toggle.bot-badge.tagAware {
+  background: #e8f7ee;
+  color: #087b3a;
+}
+
 .chat-panel {
   display: grid;
   grid-template-rows: 70px minmax(0, 1fr) 78px;
@@ -717,8 +727,8 @@ p {
 }
 
 .message.system .bubble {
-  border: 1px solid #ffd0b8;
-  background: #fff7f1;
+  border: 1px solid #efd18a;
+  background: #fffaf0;
   color: var(--orange);
 }
 

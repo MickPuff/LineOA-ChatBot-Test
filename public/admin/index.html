@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=bot-profiles">
+    <title>Goldline Admin</title>
+    <link rel="stylesheet" href="/admin/styles.css?v=gold-ui">
   </head>
   <body>
     <div class="app-shell">
       <aside class="app-nav" aria-label="Main navigation">
         <header class="brand">
-          <div class="brand-mark">C</div>
+          <div class="brand-mark">G</div>
           <div>
-            <h1>Roastline Care</h1>
-            <p>Specialty coffee support</p>
+            <h1>Goldline Care</h1>
+            <p>Gold sales support</p>
           </div>
         </header>
 
@@ -68,7 +68,7 @@
         <section class="inbox-panel" aria-label="Conversation inbox">
           <header class="inbox-heading">
             <div>
-              <h2>Coffee Inbox</h2>
+              <h2>Gold Inbox</h2>
               <p>Customer support across LINE and website chats</p>
             </div>
             <span class="prototype-pill">PROTOTYPE</span>
@@ -83,7 +83,7 @@
 
           <div class="search-wrap">
             <span aria-hidden="true">S</span>
-            <input id="search" type="search" placeholder="Search customers or coffee requests..." autocomplete="off">
+            <input id="search" type="search" placeholder="Search customers or gold requests..." autocomplete="off">
           </div>
 
           <div class="queue-tabs" aria-label="Conversation filters">
@@ -106,13 +106,13 @@
             </div>
             <div class="chat-status">
               <span class="online-dot"></span>
-              <span id="chat-bot-status">AI - Coffee Seller</span>
+              <span id="chat-bot-status">AI - Gold Seller</span>
             </div>
           </header>
 
           <section class="conversation-stage">
             <div id="empty-state" class="empty-state">
-              <h3>Select a coffee chat</h3>
+              <h3>Select a gold chat</h3>
               <p>Choose a conversation to view the full Redis transcript.</p>
             </div>
             <div id="messages" class="messages" aria-live="polite"></div>
@@ -127,22 +127,22 @@
         <aside class="customer-panel" aria-label="Customer details">
           <header class="account-switcher">
             <div>
-              <strong>Roastline Coffee</strong>
+              <strong>Goldline Bullion</strong>
             <span>Multi-channel</span>
             </div>
-            <div class="account-avatar">C</div>
+            <div class="account-avatar">G</div>
           </header>
 
           <section class="customer-card">
             <div id="detail-avatar" class="avatar profile">?</div>
             <h2 id="detail-title">New Customer</h2>
-            <span id="detail-channel-tag" class="tag">Coffee lead</span>
+            <span id="detail-channel-tag" class="tag">Gold lead</span>
             <label class="ai-toggle">
               <input id="detail-ai-toggle" type="checkbox" disabled>
               <span class="toggle-track" aria-hidden="true"></span>
               <strong id="detail-ai-label">AI enabled</strong>
             </label>
-            <label class="bot-select-wrap">
+            <label id="detail-bot-select-wrap" class="bot-select-wrap">
               <span>Active bot</span>
               <select id="detail-bot-select" disabled>
                 <option value="baseline">Baseline Bot</option>
@@ -248,6 +248,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=bot-profiles" type="module"></script>
+    <script src="/admin/app.js?v=gold-ui" type="module"></script>
   </body>
 </html>
