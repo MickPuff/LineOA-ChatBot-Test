@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=coffee-sse">
+    <link rel="stylesheet" href="/admin/styles.css?v=website-channel">
   </head>
   <body>
     <div class="app-shell">
@@ -69,14 +69,14 @@
           <header class="inbox-heading">
             <div>
               <h2>Coffee Inbox</h2>
-              <p>Customer support - AI barista to admin handoff</p>
+              <p>Customer support across LINE and website chats</p>
             </div>
             <span class="prototype-pill">PROTOTYPE</span>
           </header>
 
           <div class="queue-header">
             <div>
-              <h3>Handled by AI</h3>
+              <h3>Customer Channels</h3>
               <span id="metric-conversations" class="count-pill">0 chats</span>
             </div>
           </div>
@@ -87,9 +87,9 @@
           </div>
 
           <div class="queue-tabs" aria-label="Conversation filters">
-            <button class="active" type="button" data-filter="all">AI <span id="metric-messages">0</span></button>
-            <button type="button" data-filter="needs-admin">Admin <span id="metric-admin">0</span></button>
-            <button type="button" data-filter="follow-up">Follow-up <span id="metric-follow-up">0</span></button>
+            <button class="active" type="button" data-filter="line">LINE <span id="metric-line">0</span></button>
+            <button type="button" data-filter="website">Website <span id="metric-website">0</span></button>
+            <button type="button" data-filter="fb">FB Messenger <span id="metric-fb">0</span></button>
           </div>
 
           <div id="conversation-list" class="conversation-list" aria-live="polite"></div>
@@ -119,7 +119,7 @@
           </section>
 
           <footer class="reply-bar">
-            <input id="admin-reply-input" type="text" placeholder="Reply as admin to this LINE customer">
+            <input id="admin-reply-input" type="text" placeholder="Reply as admin to this customer">
             <button id="admin-reply-button" type="button" title="Send">&rarr;</button>
           </footer>
         </main>
@@ -128,7 +128,7 @@
           <header class="account-switcher">
             <div>
               <strong>Roastline Coffee</strong>
-              <span>LINE Official</span>
+            <span>Multi-channel</span>
             </div>
             <div class="account-avatar">C</div>
           </header>
@@ -136,7 +136,7 @@
           <section class="customer-card">
             <div class="avatar profile">?</div>
             <h2 id="detail-title">New Customer</h2>
-            <span class="tag">Coffee lead</span>
+            <span id="detail-channel-tag" class="tag">Coffee lead</span>
             <label class="ai-toggle">
               <input id="detail-ai-toggle" type="checkbox" disabled>
               <span class="toggle-track" aria-hidden="true"></span>
@@ -159,7 +159,7 @@
             <h3>Customer Info</h3>
             <dl>
               <div>
-                <dt>Source - LINE id</dt>
+                <dt>Source - customer id</dt>
                 <dd id="detail-id">-</dd>
               </div>
               <div>
@@ -173,11 +173,21 @@
             </dl>
           </section>
 
+          <section class="detail-block">
+            <h3>Customer Tags</h3>
+            <div id="detail-tags" class="tag-cloud"></div>
+            <div class="tag-editor">
+              <input id="tag-input" type="text" placeholder="Add tag, then Enter">
+              <button id="save-tags-button" type="button" disabled>Save tags</button>
+            </div>
+          </section>
+
           <section class="note-card">
             <div class="note-label">AI status is per customer</div>
             <p>## Customer Summary</p>
-            <p>- Coffee buyer from LINE</p>
+            <p>- Coffee buyer from selected channel</p>
             <p>- Full transcript stored in Redis</p>
+            <p>- Tags are sent to Gemini as customer context</p>
             <p>- Disable AI when admin should take over</p>
           </section>
 
@@ -234,6 +244,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=coffee-sse" type="module"></script>
+    <script src="/admin/app.js?v=website-channel" type="module"></script>
   </body>
 </html>

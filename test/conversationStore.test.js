@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MemoryConversationStore, getConversationId } from '../src/conversationStore.js';
+import {
+  MemoryConversationStore,
+  getConversationChannel,
+  getConversationId,
+  getWebsiteConversationId,
+} from '../src/conversationStore.js';
 
 test('stores full conversation history', async () => {
   const store = new MemoryConversationStore(2);
@@ -51,6 +56,7 @@ test('lists conversation summaries newest first', async () => {
   assert.deepEqual(await store.listConversations(), [
     {
       conversationId: 'user:new',
+      channel: 'line',
       messageCount: 2,
       userMessageCount: 1,
       assistantMessageCount: 1,
@@ -60,9 +66,11 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'new reply',
       title: 'new chat',
       aiEnabled: true,
+      tags: [],
     },
     {
       conversationId: 'user:old',
+      channel: 'line',
       messageCount: 1,
       userMessageCount: 1,
       assistantMessageCount: 0,
@@ -72,18 +80,34 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'old chat',
       title: 'old chat',
       aiEnabled: true,
+      tags: [],
     },
   ]);
 });
 
-test('stores conversation AI settings', async () => {
+test('stores conversation AI settings and tags', async () => {
   const store = new MemoryConversationStore(4);
 
-  assert.deepEqual(await store.getConversationSettings('user:1'), { aiEnabled: true });
+  assert.deepEqual(await store.getConversationSettings('user:1'), {
+    aiEnabled: true,
+    channel: '',
+    displayName: '',
+    tags: [],
+  });
 
-  await store.updateConversationSettings('user:1', { aiEnabled: false });
+  await store.updateConversationSettings('user:1', {
+    aiEnabled: false,
+    channel: 'website',
+    displayName: 'Mick',
+    tags: ['espresso', 'espresso', 'gift buyer'],
+  });
 
-  assert.deepEqual(await store.getConversationSettings('user:1'), { aiEnabled: false });
+  assert.deepEqual(await store.getConversationSettings('user:1'), {
+    aiEnabled: false,
+    channel: 'website',
+    displayName: 'Mick',
+    tags: ['espresso', 'gift buyer'],
+  });
 });
 
 test('stores bot settings', async () => {
@@ -120,4 +144,13 @@ test('builds stable LINE conversation ids', () => {
   assert.equal(getConversationId({ groupId: 'G123' }), 'group:G123');
   assert.equal(getConversationId({ roomId: 'R123' }), 'room:R123');
   assert.equal(getConversationId({}), 'unknown');
+});
+
+test('builds website conversation ids and channels', () => {
+  assert.equal(getWebsiteConversationId('Mick Puff!'), 'website:Mick-Puff');
+  assert.equal(getWebsiteConversationId(''), 'website:anonymous');
+  assert.equal(getConversationChannel('website:Mick'), 'website');
+  assert.equal(getConversationChannel('user:U123'), 'line');
+  assert.equal(getConversationChannel('fb:123'), 'fb');
+  assert.equal(getConversationChannel('unknown'), 'unknown');
 });

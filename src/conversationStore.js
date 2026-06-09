@@ -261,9 +261,11 @@ export function summarizeConversation(conversationId, history, settings = {}) {
   const firstMessage = messages[0];
   const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
   const normalizedSettings = normalizeConversationSettings(settings);
+  const channel = normalizedSettings.channel || getConversationChannel(conversationId);
 
   return {
     conversationId,
+    channel,
     messageCount: messages.length,
     userMessageCount: messages.filter((message) => message.role === 'user').length,
     assistantMessageCount: messages.filter((message) => message.role === 'assistant').length,
@@ -271,8 +273,9 @@ export function summarizeConversation(conversationId, history, settings = {}) {
     lastAt: lastMessage?.at || null,
     lastRole: lastMessage?.role || null,
     lastText: lastMessage?.text || '',
-    title: latestUserMessage?.text || conversationId,
+    title: normalizedSettings.displayName || latestUserMessage?.text || conversationId,
     aiEnabled: normalizedSettings.aiEnabled,
+    tags: normalizedSettings.tags,
   };
 }
 
@@ -281,6 +284,12 @@ function normalizeConversationSettings(settings) {
 
   return {
     aiEnabled: normalized.aiEnabled !== false,
+    channel: normalizeChannel(normalized.channel),
+    displayName:
+      typeof normalized.displayName === 'string'
+        ? normalized.displayName.trim().slice(0, 80)
+        : '',
+    tags: normalizeTags(normalized.tags),
   };
 }
 
@@ -332,4 +341,61 @@ export function getConversationId(source = {}) {
   }
 
   return 'unknown';
+}
+
+export function getWebsiteConversationId(userId) {
+  return `website:${normalizeWebsiteUserId(userId)}`;
+}
+
+export function getConversationChannel(conversationId = '') {
+  if (conversationId.startsWith('website:')) {
+    return 'website';
+  }
+
+  if (conversationId.startsWith('fb:') || conversationId.startsWith('messenger:')) {
+    return 'fb';
+  }
+
+  if (
+    conversationId.startsWith('user:') ||
+    conversationId.startsWith('group:') ||
+    conversationId.startsWith('room:')
+  ) {
+    return 'line';
+  }
+
+  return 'unknown';
+}
+
+function normalizeWebsiteUserId(userId) {
+  const normalized = String(userId || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+
+  return normalized || 'anonymous';
+}
+
+function normalizeChannel(channel) {
+  if (['line', 'website', 'fb'].includes(channel)) {
+    return channel;
+  }
+
+  return '';
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean)
+        .map((tag) => tag.slice(0, 40)),
+    ),
+  ).slice(0, 12);
 }

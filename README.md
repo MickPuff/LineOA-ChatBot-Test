@@ -1,18 +1,21 @@
 # LINE OA Gemini Chatbot
 
-A small Node.js webhook service that connects a LINE Official Account to Gemini. It replies to LINE text messages like a coffee seller, stores conversation logs per LINE user, group, or room, and sends only recent context to Gemini.
+A small Node.js service that connects a LINE Official Account and a test website chat page to Gemini. It replies like a coffee seller, stores conversation logs per customer in Redis, and sends only recent context plus admin tags to Gemini.
 
 ## What It Does
 
 - Receives LINE Messaging API webhooks at `POST /webhook`
+- Provides a public test customer page at `GET /testuser`
 - Validates LINE signatures with the official LINE Node SDK
-- Sends recent conversation context plus the latest message to Gemini
+- Sends recent conversation context, channel, display name, and admin tags to Gemini
 - Stores full conversation logs in remote Upstash Redis
 - Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
 - Provides a password-protected admin page at `GET /admin`
 - Lets admins edit the bot system prompt from `/admin/settings`; the prompt is saved in Redis
-- Lets admins disable AI replies for individual LINE conversations
+- Lets admins disable AI replies and add customer tags for individual conversations
 - Streams live inbox updates to the admin page with server-sent events, avoiding timer-based Redis polling
+- Streams website test-chat updates with server-sent events
+- Shows Gemini input/output token usage under AI messages when Gemini returns usage metadata
 - Supports `/reset`, `/clear`, `reset`, or `clear` to forget one conversation
 
 ## Setup
@@ -62,6 +65,14 @@ Use this path if you do not want the bot running on your machine.
 
    Save the system prompt there. It is stored in Redis, so you do not need to edit Render environment variables for prompt changes.
 
+8. To test the website channel, open:
+
+   ```text
+   https://your-render-service.onrender.com/testuser
+   ```
+
+   Enter a display name and test user ID. Website conversations use IDs like `website:mick-test` and appear in the Website tab of the admin inbox.
+
 ### Local Development
 
 1. Install dependencies:
@@ -109,6 +120,12 @@ Use this path if you do not want the bot running on your machine.
 
 8. Enable webhooks for the LINE channel, then send a text message to the LINE Official Account.
 
+9. For website-channel testing, open:
+
+   ```text
+   http://localhost:3000/testuser
+   ```
+
 ## Environment
 
 | Name | Required | Default | Notes |
@@ -139,8 +156,22 @@ LINE requires an HTTPS webhook URL. Local development usually needs a tunnel suc
 
 If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot forgets context whenever the Node process restarts. Use Upstash for persistent non-local memory.
 
-The admin page reads conversation logs and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
+The admin page reads conversation logs, customer tags, AI handoff settings, and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
 
-AI can be disabled per customer from the inbox. When AI is disabled for a conversation, incoming LINE messages are still saved to Redis, but the server does not call Gemini or send an automatic reply.
+AI can be disabled per customer from the inbox. When AI is disabled for a conversation, incoming LINE or website messages are still saved to Redis, but the server does not call Gemini or send an automatic reply.
 
-The inbox performs one initial Redis-backed load, then opens `/api/admin/events` for live updates. New LINE messages and admin replies are pushed over that stream, so the browser no longer rereads the full conversation list every few seconds. If the stream reconnects after a Render restart or network drop, the browser performs one recovery refresh.
+The inbox performs one initial Redis-backed load, then opens `/api/admin/events` for live updates. New LINE messages, website messages, AI replies, admin replies, and settings changes are pushed over that stream, so the browser no longer rereads the full conversation list every few seconds. If the stream reconnects after a Render restart or network drop, the browser performs one recovery refresh.
+
+Conversation IDs are channel-prefixed:
+
+- `user:<lineUserId>`, `group:<lineGroupId>`, or `room:<lineRoomId>` for LINE
+- `website:<testUserId>` for the `/testuser` page
+- `fb:<id>` is reserved for a future FB Messenger integration
+
+Redis keys include:
+
+- `lineoa:conversation:<conversationId>` for full transcripts
+- `lineoa:conversation-settings:<conversationId>` for AI enabled state, channel, display name, and tags
+- `lineoa:conversation-index` for conversation discovery
+- `lineoa:bot-settings` for the runtime system prompt
+- `lineoa:webhook-event:<eventId>` for temporary LINE duplicate detection

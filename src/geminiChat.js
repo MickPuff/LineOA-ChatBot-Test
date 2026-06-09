@@ -22,7 +22,10 @@ export class GeminiChat {
       throw new Error('Gemini returned an empty response.');
     }
 
-    return text;
+    return {
+      text,
+      usage: normalizeUsage(response.usageMetadata),
+    };
   }
 }
 
@@ -30,5 +33,21 @@ function toGeminiMessage(message) {
   return {
     role: message.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: message.text }],
+  };
+}
+
+function normalizeUsage(usageMetadata = {}) {
+  const inputTokens = Number(usageMetadata.promptTokenCount || 0);
+  const outputTokens = Number(usageMetadata.candidatesTokenCount || 0);
+  const totalTokens = Number(usageMetadata.totalTokenCount || inputTokens + outputTokens || 0);
+
+  if (!inputTokens && !outputTokens && !totalTokens) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
   };
 }

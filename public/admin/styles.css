@@ -518,6 +518,17 @@ p {
   color: #07873d;
 }
 
+.channel-badge {
+  background: #fff1e9;
+  color: var(--orange);
+}
+
+.customer-tag,
+.tag-chip {
+  background: #eef2f7;
+  color: #516074;
+}
+
 .mini-toggle {
   min-height: 24px;
   border-radius: 999px;
@@ -649,6 +660,29 @@ p {
   color: var(--orange);
 }
 
+.performance-widget {
+  justify-self: end;
+  width: min(100%, 360px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #516074;
+  font-size: 12px;
+}
+
+.performance-widget summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-weight: 900;
+}
+
+.performance-grid {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding: 8px 10px 10px;
+}
+
 .empty-state {
   display: grid;
   height: 100%;
@@ -708,7 +742,7 @@ p {
 
 .customer-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto 1fr auto;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -846,6 +880,63 @@ p {
   color: #344055;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  margin-top: 10px;
+}
+
+.tag-chip {
+  min-height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.small-muted {
+  padding: 0;
+  font-size: 12px;
+}
+
+.tag-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tag-editor input {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  outline: 0;
+  padding: 0 10px;
+}
+
+.tag-editor button {
+  min-height: 38px;
+  border-radius: 10px;
+  background: var(--orange);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 0 12px;
+}
+
+.tag-editor button:disabled,
+.tag-editor input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .note-card {

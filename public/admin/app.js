@@ -3,7 +3,8 @@ const state = {
   filteredConversations: [],
   selectedConversationId: null,
   selectedMessages: [],
-  activeFilter: 'all',
+  selectedSettings: null,
+  activeFilter: 'line',
   currentPage: getCurrentPage(),
   settings: null,
   eventSource: null,
@@ -32,15 +33,19 @@ const elements = {
   toast: document.querySelector('#toast'),
   pages: [...document.querySelectorAll('.page[data-page]')],
   metricConversations: document.querySelector('#metric-conversations'),
-  metricMessages: document.querySelector('#metric-messages'),
-  metricAdmin: document.querySelector('#metric-admin'),
-  metricFollowUp: document.querySelector('#metric-follow-up'),
+  metricLine: document.querySelector('#metric-line'),
+  metricWebsite: document.querySelector('#metric-website'),
+  metricFb: document.querySelector('#metric-fb'),
   detailTitle: document.querySelector('#detail-title'),
   detailId: document.querySelector('#detail-id'),
   detailCount: document.querySelector('#detail-count'),
   detailUserCount: document.querySelector('#detail-user-count'),
   detailAssistantCount: document.querySelector('#detail-assistant-count'),
   detailLastAt: document.querySelector('#detail-last-at'),
+  detailChannelTag: document.querySelector('#detail-channel-tag'),
+  detailTags: document.querySelector('#detail-tags'),
+  tagInput: document.querySelector('#tag-input'),
+  saveTagsButton: document.querySelector('#save-tags-button'),
   systemPromptInput: document.querySelector('#system-prompt-input'),
   saveSettingsButton: document.querySelector('#save-settings-button'),
   resetPromptButton: document.querySelector('#reset-prompt-button'),
@@ -68,6 +73,13 @@ elements.detailAiToggle.addEventListener('change', () => {
     updateConversationAi(state.selectedConversationId, elements.detailAiToggle.checked);
   }
 });
+elements.tagInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addTagFromInput();
+  }
+});
+elements.saveTagsButton.addEventListener('click', () => saveSelectedTags());
 elements.saveSettingsButton.addEventListener('click', () => saveBotSettings());
 elements.resetPromptButton.addEventListener('click', () => useDefaultPrompt());
 
@@ -195,20 +207,24 @@ function applyConversationCleared(payload) {
 function applyConversationSettingsUpdate(payload) {
   const conversationId = payload?.conversationId;
 
-  if (!conversationId || typeof payload.settings?.aiEnabled !== 'boolean') {
+  if (!conversationId || !payload.settings) {
     return;
   }
 
   state.conversations = state.conversations.map((conversation) =>
     conversation.conversationId === conversationId
-      ? { ...conversation, aiEnabled: payload.settings.aiEnabled }
+      ? { ...conversation, ...payload.settings }
       : conversation,
   );
 
   filterConversations();
 
   if (state.selectedConversationId === conversationId) {
-    updateSelectedAiToggle(
+    state.selectedSettings = {
+      ...state.selectedSettings,
+      ...payload.settings,
+    };
+    updateSelectedConversationDetails(
       state.conversations.find((conversation) => conversation.conversationId === conversationId),
     );
   }
@@ -273,6 +289,8 @@ function filterConversations() {
           conversation.title,
           conversation.lastText,
           conversation.lastRole,
+          conversation.channel,
+          ...(conversation.tags || []),
         ]
           .join(' ')
           .toLowerCase()
@@ -337,6 +355,10 @@ function renderConversationList() {
     badge.className = `badge unread-badge${unreadCount > 0 ? ' has-unread' : ''}`;
     badge.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'Read';
 
+    const channelBadge = document.createElement('span');
+    channelBadge.className = 'badge channel-badge';
+    channelBadge.textContent = getChannelLabel(conversation.channel);
+
     const aiButton = document.createElement('button');
     aiButton.type = 'button';
     aiButton.className = `mini-toggle${conversation.aiEnabled === false ? ' is-off' : ''}`;
@@ -347,7 +369,15 @@ function renderConversationList() {
     });
 
     topRow.append(title, time);
-    tags.append(dot, badge, aiButton);
+    tags.append(dot, badge, channelBadge, aiButton);
+
+    for (const tag of conversation.tags || []) {
+      const tagBadge = document.createElement('span');
+      tagBadge.className = 'badge customer-tag';
+      tagBadge.textContent = tag;
+      tags.append(tagBadge);
+    }
+
     body.append(topRow, preview, tags);
     item.append(avatar, body);
     elements.list.append(item);
@@ -362,6 +392,7 @@ async function selectConversation(conversationId) {
   try {
     const data = await fetchJson(`/api/admin/conversations/${encodeURIComponent(conversationId)}`);
     state.selectedMessages = data.messages || [];
+    state.selectedSettings = data.settings || null;
     renderSelectedConversation();
   } catch (error) {
     showToast(error.message || 'Could not load this conversation.');
@@ -393,7 +424,7 @@ function renderSelectedConversation() {
     state.selectedMessages.filter((message) => message.role === 'assistant').length,
   );
   elements.detailLastAt.textContent = formatRelativeDate(summary?.lastAt);
-  updateSelectedAiToggle(summary);
+  updateSelectedConversationDetails(summary);
 
   for (const message of state.selectedMessages) {
     elements.messages.append(createMessageNode(message));
@@ -412,19 +443,51 @@ function createMessageNode(message) {
 
   const meta = document.createElement('div');
   meta.className = 'message-meta';
-  meta.textContent = `${message.role || 'unknown'} - ${formatDate(message.at)}`;
+  meta.textContent = `${getMessageSenderLabel(message)} - ${formatDate(message.at)}`;
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
   bubble.textContent = message.text || '';
 
   wrapper.append(meta, bubble);
+
+  if (message.role === 'assistant' && message.from !== 'admin') {
+    wrapper.append(createPerformanceWidget(message.usage));
+  }
+
   return wrapper;
+}
+
+function createPerformanceWidget(usage) {
+  const details = document.createElement('details');
+  details.className = 'performance-widget';
+
+  const summary = document.createElement('summary');
+  summary.textContent = 'Performance';
+
+  const body = document.createElement('div');
+  body.className = 'performance-grid';
+
+  const metrics = [
+    ['Input tokens', usage?.inputTokens],
+    ['Output tokens', usage?.outputTokens],
+    ['Total tokens', usage?.totalTokens],
+  ];
+
+  for (const [label, value] of metrics) {
+    const item = document.createElement('span');
+    item.textContent = `${label}: ${Number.isFinite(value) ? formatNumber(value) : '-'}`;
+    body.append(item);
+  }
+
+  details.append(summary, body);
+  return details;
 }
 
 function clearSelection() {
   state.selectedConversationId = null;
   state.selectedMessages = [];
+  state.selectedSettings = null;
   elements.messages.replaceChildren();
   elements.emptyState.style.display = 'grid';
   elements.copyIdButton.disabled = true;
@@ -437,6 +500,11 @@ function clearSelection() {
   elements.detailUserCount.textContent = '-';
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
+  elements.detailChannelTag.textContent = 'Coffee lead';
+  elements.detailTags.replaceChildren();
+  elements.tagInput.value = '';
+  elements.tagInput.disabled = true;
+  elements.saveTagsButton.disabled = true;
   elements.detailAiToggle.checked = true;
   elements.detailAiToggle.disabled = true;
   elements.detailAiLabel.textContent = 'AI enabled';
@@ -483,8 +551,8 @@ async function sendAdminReply() {
     return;
   }
 
-  if (!isPushableLineConversation(state.selectedConversationId)) {
-    showToast('Admin replies support LINE user, group, or room chats only.');
+  if (!isAdminReplySupportedConversation(state.selectedConversationId)) {
+    showToast('Admin replies support LINE and website chats.');
     return;
   }
 
@@ -506,7 +574,7 @@ async function sendAdminReply() {
     });
     elements.adminReplyInput.value = '';
     applyConversationUpdate(data);
-    showToast('Admin reply sent to LINE and saved.');
+    showToast(getSelectedChannel() === 'website' ? 'Admin reply sent to website chat.' : 'Admin reply sent to LINE and saved.');
   } catch (error) {
     showToast(error.message || 'Could not send admin reply.');
   } finally {
@@ -533,7 +601,11 @@ async function updateConversationAi(conversationId, aiEnabled) {
     filterConversations();
 
     if (state.selectedConversationId === conversationId) {
-      updateSelectedAiToggle(
+      state.selectedSettings = {
+        ...state.selectedSettings,
+        aiEnabled: data.settings.aiEnabled,
+      };
+      updateSelectedConversationDetails(
         state.conversations.find((conversation) => conversation.conversationId === conversationId),
       );
     }
@@ -549,12 +621,103 @@ async function updateConversationAi(conversationId, aiEnabled) {
   }
 }
 
-function updateSelectedAiToggle(summary) {
+function updateSelectedConversationDetails(summary) {
   const aiEnabled = summary?.aiEnabled !== false;
+  const channel = summary?.channel || getChannelFromConversationId(summary?.conversationId || state.selectedConversationId);
+  const tags = state.selectedSettings?.tags || summary?.tags || [];
 
   elements.detailAiToggle.disabled = !state.selectedConversationId;
   elements.detailAiToggle.checked = aiEnabled;
   elements.detailAiLabel.textContent = aiEnabled ? 'AI enabled' : 'AI disabled';
+  elements.detailChannelTag.textContent = getChannelLabel(channel);
+  elements.tagInput.disabled = !state.selectedConversationId;
+  elements.saveTagsButton.disabled = !state.selectedConversationId;
+  renderTagEditor(tags);
+}
+
+function renderTagEditor(tags = []) {
+  elements.detailTags.replaceChildren();
+
+  if (tags.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'muted small-muted';
+    empty.textContent = 'No tags yet';
+    elements.detailTags.append(empty);
+    return;
+  }
+
+  for (const tag of tags) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'tag-chip';
+    chip.textContent = `${tag} x`;
+    chip.title = `Remove ${tag}`;
+    chip.addEventListener('click', () => removeSelectedTag(tag));
+    elements.detailTags.append(chip);
+  }
+}
+
+function addTagFromInput() {
+  const tag = elements.tagInput.value.trim();
+
+  if (!state.selectedConversationId || !tag) {
+    return;
+  }
+
+  const currentTags = state.selectedSettings?.tags || getSelectedSummary()?.tags || [];
+  const nextTags = normalizeTags([...currentTags, tag]);
+
+  state.selectedSettings = {
+    ...state.selectedSettings,
+    tags: nextTags,
+  };
+  elements.tagInput.value = '';
+  renderTagEditor(nextTags);
+}
+
+function removeSelectedTag(tag) {
+  const currentTags = state.selectedSettings?.tags || getSelectedSummary()?.tags || [];
+  const nextTags = currentTags.filter((item) => item !== tag);
+
+  state.selectedSettings = {
+    ...state.selectedSettings,
+    tags: nextTags,
+  };
+  renderTagEditor(nextTags);
+}
+
+async function saveSelectedTags() {
+  if (!state.selectedConversationId) {
+    return;
+  }
+
+  addTagFromInput();
+  const tags = state.selectedSettings?.tags || [];
+  elements.saveTagsButton.disabled = true;
+
+  try {
+    const data = await fetchJson(`/api/admin/conversations/${encodeURIComponent(state.selectedConversationId)}/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tags }),
+    });
+
+    state.selectedSettings = data.settings;
+    state.conversations = state.conversations.map((conversation) =>
+      conversation.conversationId === state.selectedConversationId
+        ? { ...conversation, tags: data.settings.tags }
+        : conversation,
+    );
+    filterConversations();
+    renderTagEditor(data.settings.tags);
+    showToast('Customer tags saved.');
+  } catch (error) {
+    showToast(error.message || 'Could not save customer tags.');
+  } finally {
+    elements.saveTagsButton.disabled = !state.selectedConversationId;
+  }
 }
 
 async function loadSettings() {
@@ -639,12 +802,14 @@ async function fetchJson(url, options = {}) {
 
 function updateMetrics(totals = {}) {
   elements.metricConversations.textContent = `${formatNumber(totals.conversations || 0)} chats`;
-  elements.metricMessages.textContent = formatNumber(state.conversations.length);
-  elements.metricAdmin.textContent = formatNumber(
-    state.conversations.filter((conversation) => conversation.lastRole === 'user').length,
+  elements.metricLine.textContent = formatNumber(
+    state.conversations.filter((conversation) => getConversationChannel(conversation) === 'line').length,
   );
-  elements.metricFollowUp.textContent = formatNumber(
-    state.conversations.filter(isFollowUpConversation).length,
+  elements.metricWebsite.textContent = formatNumber(
+    state.conversations.filter((conversation) => getConversationChannel(conversation) === 'website').length,
+  );
+  elements.metricFb.textContent = formatNumber(
+    state.conversations.filter((conversation) => getConversationChannel(conversation) === 'fb').length,
   );
 }
 
@@ -725,27 +890,7 @@ function setActiveFilter(filter) {
 }
 
 function matchesActiveFilter(conversation) {
-  if (state.activeFilter === 'needs-admin') {
-    return conversation.lastRole === 'user';
-  }
-
-  if (state.activeFilter === 'follow-up') {
-    return isFollowUpConversation(conversation);
-  }
-
-  if (state.activeFilter === 'repeat-buyers') {
-    return conversation.messageCount >= 4;
-  }
-
-  return true;
-}
-
-function isFollowUpConversation(conversation) {
-  if (!conversation.lastAt) {
-    return false;
-  }
-
-  return Date.now() - Date.parse(conversation.lastAt) > 24 * 60 * 60 * 1000;
+  return getConversationChannel(conversation) === state.activeFilter;
 }
 
 function sortConversationSummaries(left, right) {
@@ -765,29 +910,33 @@ function renderCurrentPage() {
 }
 
 function updateComposerState() {
-  const canReply = isPushableLineConversation(state.selectedConversationId);
+  const canReply = isAdminReplySupportedConversation(state.selectedConversationId);
   elements.adminReplyInput.disabled = !canReply;
   elements.adminReplyButton.disabled = !canReply;
   elements.adminReplyInput.placeholder = canReply
-    ? 'Reply as admin to this LINE customer'
-    : 'Select a LINE user, group, or room chat to reply';
+    ? 'Reply as admin to this customer'
+    : 'Select a LINE or website chat to reply';
 }
 
 function isPushableLineConversation(conversationId) {
   return ['user:', 'group:', 'room:'].some((prefix) => conversationId?.startsWith(prefix));
 }
 
+function isAdminReplySupportedConversation(conversationId) {
+  return isPushableLineConversation(conversationId) || conversationId?.startsWith('website:');
+}
+
 function getEmptyListMessage() {
-  if (state.activeFilter === 'needs-admin') {
-    return 'No chats currently need admin attention.';
+  if (state.activeFilter === 'line') {
+    return 'No LINE chats found.';
   }
 
-  if (state.activeFilter === 'follow-up') {
-    return 'No follow-up chats found.';
+  if (state.activeFilter === 'website') {
+    return 'No website chats found.';
   }
 
-  if (state.activeFilter === 'repeat-buyers') {
-    return 'No repeat-buyer conversations found yet.';
+  if (state.activeFilter === 'fb') {
+    return 'FB Messenger support is ready for future chats.';
   }
 
   return 'No chats found.';
@@ -852,12 +1001,32 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
 
+function getMessageSenderLabel(message) {
+  if (message.role === 'user') {
+    return 'Customer';
+  }
+
+  if (message.from === 'admin') {
+    return 'Admin';
+  }
+
+  if (message.role === 'assistant') {
+    return 'AI coffee seller';
+  }
+
+  return message.role || 'unknown';
+}
+
 function getConversationDisplayName(conversation) {
   if (!conversation) {
     return 'New Customer';
   }
 
   const id = conversation.conversationId || '';
+
+  if (id.startsWith('website:')) {
+    return conversation.title && conversation.title !== id ? conversation.title : 'Website Customer';
+  }
 
   if (id.startsWith('group:')) {
     return 'Coffee Group';
@@ -868,6 +1037,67 @@ function getConversationDisplayName(conversation) {
   }
 
   return 'New Customer';
+}
+
+function getConversationChannel(conversation) {
+  return conversation?.channel || getChannelFromConversationId(conversation?.conversationId);
+}
+
+function getSelectedSummary() {
+  return state.conversations.find(
+    (conversation) => conversation.conversationId === state.selectedConversationId,
+  );
+}
+
+function getSelectedChannel() {
+  return getConversationChannel(getSelectedSummary());
+}
+
+function getChannelFromConversationId(conversationId = '') {
+  if (conversationId.startsWith('website:')) {
+    return 'website';
+  }
+
+  if (conversationId.startsWith('fb:') || conversationId.startsWith('messenger:')) {
+    return 'fb';
+  }
+
+  if (
+    conversationId.startsWith('user:') ||
+    conversationId.startsWith('group:') ||
+    conversationId.startsWith('room:')
+  ) {
+    return 'line';
+  }
+
+  return 'unknown';
+}
+
+function getChannelLabel(channel = 'unknown') {
+  if (channel === 'line') {
+    return 'LINE';
+  }
+
+  if (channel === 'website') {
+    return 'Website';
+  }
+
+  if (channel === 'fb') {
+    return 'FB Messenger';
+  }
+
+  return 'Unknown';
+}
+
+function normalizeTags(tags) {
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean)
+        .map((tag) => tag.slice(0, 40)),
+    ),
+  ).slice(0, 12);
 }
 
 function showToast(message) {

@@ -11,7 +11,9 @@ import {
 import { getConfig } from './config.js';
 import {
   createConversationStore,
+  getConversationChannel,
   getConversationId,
+  getWebsiteConversationId,
   summarizeConversation,
 } from './conversationStore.js';
 import { GeminiChat } from './geminiChat.js';
@@ -20,6 +22,7 @@ const config = getConfig();
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const adminPublicPath = path.join(__dirname, '..', 'public', 'admin');
+const testUserPublicPath = path.join(__dirname, '..', 'public', 'testuser');
 const lineConfig = { channelSecret: config.lineChannelSecret };
 const lineClient = LineBotClient.fromChannelAccessToken({
   channelAccessToken: config.lineChannelAccessToken,
@@ -30,6 +33,7 @@ const geminiChat = new GeminiChat({
   model: config.geminiModel,
 });
 const adminEventClients = new Set();
+const testUserEventClients = new Map();
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -49,6 +53,98 @@ app.get('/debug/config', (_req, res) => {
     processedEventTtlSeconds: config.processedEventTtlSeconds,
     adminEnabled: Boolean(config.adminPassword),
   });
+});
+
+app.get(/^\/testuser\/?$/, (_req, res) => {
+  res.sendFile(path.join(testUserPublicPath, 'index.html'));
+});
+
+app.use('/testuser', express.static(testUserPublicPath, {
+  index: false,
+  redirect: false,
+}));
+
+app.get('/api/testuser/events', (req, res) => {
+  const conversationId = getWebsiteConversationId(req.query.userId);
+
+  res.set({
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'Content-Type': 'text/event-stream',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+  res.write('retry: 5000\n\n');
+
+  const client = {
+    id: crypto.randomUUID(),
+    conversationId,
+    res,
+  };
+  const heartbeat = setInterval(() => {
+    sendServerEvent(client, 'heartbeat', { at: new Date().toISOString() });
+  }, 25000);
+
+  addTestUserEventClient(conversationId, client);
+  sendServerEvent(client, 'connected', { conversationId, at: new Date().toISOString() });
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    removeTestUserEventClient(conversationId, client);
+  });
+});
+
+app.use('/api/testuser', express.json({ limit: '32kb' }));
+
+app.get('/api/testuser/messages', async (req, res, next) => {
+  try {
+    const conversationId = getWebsiteConversationId(req.query.userId);
+    const history = await conversationStore.getHistory(conversationId);
+    const settings = await ensureWebsiteConversationSettings(conversationId, {
+      displayName: req.query.displayName,
+    });
+
+    res.json({
+      ok: true,
+      conversationId,
+      settings,
+      messages: history,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/testuser/messages', async (req, res, next) => {
+  try {
+    const userId = req.body?.userId;
+    const displayName = req.body?.displayName;
+    const text = String(req.body?.text || '').trim();
+
+    if (!String(userId || '').trim()) {
+      res.status(400).json({ ok: false, error: 'User ID is required.' });
+      return;
+    }
+
+    if (!text) {
+      res.status(400).json({ ok: false, error: 'Message text is required.' });
+      return;
+    }
+
+    const conversationId = getWebsiteConversationId(userId);
+    await ensureWebsiteConversationSettings(conversationId, { displayName });
+
+    const result = await handleCustomerText({
+      conversationId,
+      userText: text,
+      source: 'website',
+      reply: null,
+    });
+
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get(/^\/admin\/?$/, requireAdmin, (_req, res) => {
@@ -115,9 +211,12 @@ app.get('/api/admin/conversations', requireAdmin, async (_req, res, next) => {
 app.get('/api/admin/conversations/:conversationId', requireAdmin, async (req, res, next) => {
   try {
     const conversationId = req.params.conversationId;
-    const history = await conversationStore.getHistory(conversationId);
+    const [history, settings] = await Promise.all([
+      conversationStore.getHistory(conversationId),
+      conversationStore.getConversationSettings(conversationId),
+    ]);
 
-    res.json({ ok: true, conversationId, messages: history });
+    res.json({ ok: true, conversationId, settings, messages: history });
   } catch (error) {
     next(error);
   }
@@ -127,15 +226,33 @@ app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, asy
   try {
     const conversationId = req.params.conversationId;
     const aiEnabled = req.body?.aiEnabled;
+    const tags = req.body?.tags;
+    const settingsPatch = {};
 
-    if (typeof aiEnabled !== 'boolean') {
-      res.status(400).json({ ok: false, error: 'aiEnabled must be true or false.' });
+    if (aiEnabled !== undefined) {
+      if (typeof aiEnabled !== 'boolean') {
+        res.status(400).json({ ok: false, error: 'aiEnabled must be true or false.' });
+        return;
+      }
+
+      settingsPatch.aiEnabled = aiEnabled;
+    }
+
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        res.status(400).json({ ok: false, error: 'tags must be an array.' });
+        return;
+      }
+
+      settingsPatch.tags = tags;
+    }
+
+    if (Object.keys(settingsPatch).length === 0) {
+      res.status(400).json({ ok: false, error: 'No supported settings were provided.' });
       return;
     }
 
-    const settings = await conversationStore.updateConversationSettings(conversationId, {
-      aiEnabled,
-    });
+    const settings = await conversationStore.updateConversationSettings(conversationId, settingsPatch);
 
     broadcastAdminEvent('conversation-settings-updated', {
       conversationId,
@@ -159,15 +276,14 @@ app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, asyn
       return;
     }
 
-    if (!isPushableLineConversation(conversationId)) {
+    if (!isAdminReplySupportedConversation(conversationId)) {
       res.status(400).json({
         ok: false,
-        error: 'Admin replies are only supported for LINE user, group, or room conversations.',
+        error: 'Admin replies are supported for LINE and website conversations.',
       });
       return;
     }
 
-    const to = getLineRecipient(conversationId);
     const message = {
       role: 'assistant',
       text,
@@ -175,16 +291,24 @@ app.post('/api/admin/conversations/:conversationId/messages', requireAdmin, asyn
       from: 'admin',
     };
 
-    await lineClient.pushMessage({
-      to,
-      messages: [{ type: 'text', text: truncateLineText(text) }],
-    });
+    if (isPushableLineConversation(conversationId)) {
+      await lineClient.pushMessage({
+        to: getLineRecipient(conversationId),
+        messages: [{ type: 'text', text: truncateLineText(text) }],
+      });
+    }
+
     const history = await conversationStore.append(conversationId, message);
     const settings = await conversationStore.getConversationSettings(conversationId);
     const conversation = summarizeConversation(conversationId, history, settings);
 
     broadcastAdminEvent('conversation-updated', {
       conversation,
+      message,
+      source: 'admin',
+    });
+    broadcastTestUserEvent(conversationId, 'message', {
+      conversationId,
       message,
       source: 'admin',
     });
@@ -301,50 +425,85 @@ async function handleEvent(event) {
   const conversationId = getConversationId(event.source);
   console.log(`Handling text message: conversation=${conversationId}, chars=${userText.length}`);
 
+  await handleCustomerText({
+    conversationId,
+    userText,
+    source: 'line',
+    reply: (text) => replyToLine(event.replyToken, text),
+  });
+}
+
+function isResetCommand(text) {
+  return ['/reset', 'reset', 'clear', '/clear'].includes(text.toLowerCase());
+}
+
+async function handleCustomerText({ conversationId, userText, source, reply }) {
   if (isResetCommand(userText)) {
     await conversationStore.clear(conversationId);
     broadcastAdminEvent('conversation-cleared', {
       conversationId,
       at: new Date().toISOString(),
     });
-    await replyToLine(event.replyToken, 'Done. I cleared our conversation context.');
+    broadcastTestUserEvent(conversationId, 'conversation-cleared', {
+      conversationId,
+      at: new Date().toISOString(),
+    });
+
+    if (reply) {
+      await reply('Done. I cleared our conversation context.');
+    }
+
     console.log(`Reset conversation context: conversation=${conversationId}`);
-    return;
+    return {
+      conversationId,
+      messages: [],
+      assistantMessage: null,
+    };
   }
 
   const history = await conversationStore.getRecentHistory(conversationId);
-
   const userMessage = {
     role: 'user',
     text: userText,
     at: new Date().toISOString(),
+    source,
   };
   const historyWithUserMessage = await conversationStore.append(conversationId, userMessage);
-
   const conversationSettings = await conversationStore.getConversationSettings(conversationId);
-  broadcastAdminEvent('conversation-updated', {
-    conversation: summarizeConversation(
-      conversationId,
-      historyWithUserMessage,
-      conversationSettings,
-    ),
+
+  broadcastConversationUpdate({
+    conversationId,
+    history: historyWithUserMessage,
+    settings: conversationSettings,
     message: userMessage,
-    source: 'line',
+    source,
   });
 
   if (!conversationSettings.aiEnabled) {
     console.log(`AI disabled for conversation: conversation=${conversationId}`);
-    return;
+    return {
+      conversationId,
+      messages: historyWithUserMessage,
+      assistantMessage: null,
+    };
   }
 
   const botSettings = await getEffectiveBotSettings();
   let assistantText;
+  let usage = null;
+
   try {
-    assistantText = await geminiChat.reply(
+    const aiReply = await geminiChat.reply(
       history,
       userText,
-      botSettings.systemInstruction,
+      buildLlmSystemInstruction(
+        botSettings.systemInstruction,
+        conversationId,
+        conversationSettings,
+      ),
     );
+    assistantText = aiReply.text;
+    usage = aiReply.usage;
   } catch (error) {
     console.error('Gemini request failed:', error);
     assistantText = 'Sorry, I could not reach Gemini right now. Please try again in a moment.';
@@ -354,28 +513,105 @@ async function handleEvent(event) {
     role: 'assistant',
     text: assistantText,
     at: new Date().toISOString(),
+    from: 'ai',
+    ...(usage ? { usage } : {}),
   };
   const historyWithAssistantMessage = await conversationStore.append(
     conversationId,
     assistantMessage,
   );
 
-  broadcastAdminEvent('conversation-updated', {
-    conversation: summarizeConversation(
-      conversationId,
-      historyWithAssistantMessage,
-      conversationSettings,
-    ),
+  broadcastConversationUpdate({
+    conversationId,
+    history: historyWithAssistantMessage,
+    settings: conversationSettings,
     message: assistantMessage,
     source: 'ai',
   });
 
-  await replyToLine(event.replyToken, assistantText);
-  console.log(`Replied to LINE: conversation=${conversationId}, chars=${assistantText.length}`);
+  if (reply) {
+    await reply(assistantText);
+    console.log(`Replied to ${source}: conversation=${conversationId}, chars=${assistantText.length}`);
+  }
+
+  return {
+    conversationId,
+    messages: historyWithAssistantMessage,
+    assistantMessage,
+  };
 }
 
-function isResetCommand(text) {
-  return ['/reset', 'reset', 'clear', '/clear'].includes(text.toLowerCase());
+function broadcastConversationUpdate({ conversationId, history, settings, message, source }) {
+  const conversation = summarizeConversation(conversationId, history, settings);
+
+  broadcastAdminEvent('conversation-updated', {
+    conversation,
+    message,
+    source,
+  });
+  broadcastTestUserEvent(conversationId, 'message', {
+    conversationId,
+    message,
+    source,
+  });
+}
+
+async function ensureWebsiteConversationSettings(conversationId, { displayName } = {}) {
+  const currentSettings = await conversationStore.getConversationSettings(conversationId);
+  const patch = {
+    channel: 'website',
+  };
+  const normalizedDisplayName = String(displayName || '').trim();
+
+  if (normalizedDisplayName && currentSettings.displayName !== normalizedDisplayName) {
+    patch.displayName = normalizedDisplayName;
+  }
+
+  if (currentSettings.channel !== 'website' || patch.displayName) {
+    return conversationStore.updateConversationSettings(conversationId, patch);
+  }
+
+  return currentSettings;
+}
+
+function buildLlmSystemInstruction(systemInstruction, conversationId, settings) {
+  const channel = settings.channel || getConversationChannel(conversationId);
+  const lines = [
+    systemInstruction,
+    '',
+    'Customer context:',
+    `- Channel: ${formatChannel(channel)}`,
+  ];
+
+  if (settings.displayName) {
+    lines.push(`- Display name: ${settings.displayName}`);
+  }
+
+  if (settings.tags?.length) {
+    lines.push(`- Admin tags: ${settings.tags.join(', ')}`);
+  } else {
+    lines.push('- Admin tags: none');
+  }
+
+  lines.push('Use admin tags as customer context, not as text to quote back unless helpful.');
+
+  return lines.join('\n');
+}
+
+function formatChannel(channel) {
+  if (channel === 'line') {
+    return 'LINE';
+  }
+
+  if (channel === 'website') {
+    return 'Website';
+  }
+
+  if (channel === 'fb') {
+    return 'FB Messenger';
+  }
+
+  return 'Unknown';
 }
 
 function getLineRecipient(conversationId) {
@@ -391,7 +627,15 @@ function getLineRecipient(conversationId) {
 }
 
 function isPushableLineConversation(conversationId) {
-  return ['user:', 'group:', 'room:'].some((prefix) => conversationId.startsWith(prefix));
+  return ['user:', 'group:', 'room:'].some((prefix) => conversationId?.startsWith(prefix));
+}
+
+function isWebsiteConversation(conversationId) {
+  return conversationId?.startsWith('website:');
+}
+
+function isAdminReplySupportedConversation(conversationId) {
+  return isPushableLineConversation(conversationId) || isWebsiteConversation(conversationId);
 }
 
 function requireAdmin(req, res, next) {
@@ -465,6 +709,38 @@ function truncateLineText(text) {
 function broadcastAdminEvent(event, payload) {
   for (const client of adminEventClients) {
     sendServerEvent(client, event, payload);
+  }
+}
+
+function broadcastTestUserEvent(conversationId, event, payload) {
+  const clients = testUserEventClients.get(conversationId);
+
+  if (!clients) {
+    return;
+  }
+
+  for (const client of clients) {
+    sendServerEvent(client, event, payload);
+  }
+}
+
+function addTestUserEventClient(conversationId, client) {
+  const clients = testUserEventClients.get(conversationId) || new Set();
+  clients.add(client);
+  testUserEventClients.set(conversationId, clients);
+}
+
+function removeTestUserEventClient(conversationId, client) {
+  const clients = testUserEventClients.get(conversationId);
+
+  if (!clients) {
+    return;
+  }
+
+  clients.delete(client);
+
+  if (clients.size === 0) {
+    testUserEventClients.delete(conversationId);
   }
 }
 

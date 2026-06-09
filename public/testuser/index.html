@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roastline Test Customer</title>
+    <link rel="stylesheet" href="/testuser/styles.css?v=website-channel">
+  </head>
+  <body>
+    <main class="test-shell">
+      <section id="identity-panel" class="identity-panel">
+        <div>
+          <p class="eyebrow">Website test channel</p>
+          <h1>Roastline Coffee Chat</h1>
+          <p class="lede">Use this page as a customer on a website widget. Your messages are saved to Redis as a website conversation.</p>
+        </div>
+
+        <form id="identity-form" class="identity-form">
+          <label>
+            Display name
+            <input id="display-name-input" name="displayName" type="text" maxlength="80" placeholder="Example: Mick" autocomplete="name" required>
+          </label>
+          <label>
+            Test user ID
+            <input id="user-id-input" name="userId" type="text" maxlength="64" autocomplete="username" required>
+          </label>
+          <button type="submit">Start chat</button>
+        </form>
+      </section>
+
+      <section id="chat-panel" class="chat-panel" hidden>
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Roastline Coffee</p>
+            <h1>Customer Chat</h1>
+            <p id="conversation-label">Website customer</p>
+          </div>
+          <button id="change-user-button" type="button">Change user</button>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="message-form" class="message-form">
+          <input id="message-input" type="text" maxlength="2000" placeholder="Ask about beans, drinks, roast levels..." autocomplete="off">
+          <button id="send-button" type="submit" title="Send">&rarr;</button>
+        </form>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/testuser/app.js?v=website-channel" type="module"></script>
+  </body>
+</html>

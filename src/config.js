@@ -7,7 +7,7 @@ const requiredEnv = [
 ];
 
 export const DEFAULT_BOT_SYSTEM_INSTRUCTION =
-  'You are a friendly coffee seller chatting inside LINE. Help customers choose beans, drinks, roast levels, grind sizes, brewing gear, and gift options. Ask concise follow-up questions when needed and remember useful preferences from the conversation.';
+  'You are a friendly coffee seller chatting with customers across LINE and website chat. Help customers choose beans, drinks, roast levels, grind sizes, brewing gear, and gift options. Ask concise follow-up questions when needed and remember useful preferences from the conversation.';
 
 export function getConfig() {
   const storageProvider = process.env.STORAGE_PROVIDER || 'upstash';
