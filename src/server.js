@@ -10,6 +10,7 @@ import {
 } from '@line/bot-sdk';
 import { getConfig } from './config.js';
 import {
+  BOT_PROFILES,
   createConversationStore,
   getConversationChannel,
   getConversationId,
@@ -227,6 +228,7 @@ app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, asy
   try {
     const conversationId = req.params.conversationId;
     const aiEnabled = req.body?.aiEnabled;
+    const botId = req.body?.botId;
     const tags = req.body?.tags;
     const settingsPatch = {};
 
@@ -237,6 +239,15 @@ app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, asy
       }
 
       settingsPatch.aiEnabled = aiEnabled;
+    }
+
+    if (botId !== undefined) {
+      if (!isSupportedBotId(botId)) {
+        res.status(400).json({ ok: false, error: 'botId must be baseline or tagAware.' });
+        return;
+      }
+
+      settingsPatch.botId = botId;
     }
 
     if (tags !== undefined) {
@@ -330,7 +341,8 @@ app.get('/api/admin/settings', requireAdmin, async (_req, res, next) => {
       storageProvider: config.storageProvider,
       maxContextMessages: config.maxContextMessages,
       processedEventTtlSeconds: config.processedEventTtlSeconds,
-      systemInstruction: botSettings.systemInstruction,
+      botProfiles: BOT_PROFILES,
+      bots: botSettings.bots,
       defaultSystemInstruction: config.defaultBotSystemInstruction,
     });
   } catch (error) {
@@ -340,19 +352,38 @@ app.get('/api/admin/settings', requireAdmin, async (_req, res, next) => {
 
 app.patch('/api/admin/settings', requireAdmin, async (req, res, next) => {
   try {
-    const systemInstruction = String(req.body?.systemInstruction || '').trim();
+    const bots = req.body?.bots;
 
-    if (!systemInstruction) {
-      res.status(400).json({ ok: false, error: 'System prompt is required.' });
+    if (!bots || typeof bots !== 'object' || Array.isArray(bots)) {
+      res.status(400).json({ ok: false, error: 'bots must be an object.' });
       return;
     }
 
-    if (systemInstruction.length > 4000) {
-      res.status(400).json({ ok: false, error: 'System prompt must be 4000 characters or fewer.' });
-      return;
+    const botPatch = {};
+
+    for (const profile of BOT_PROFILES) {
+      const systemInstruction = String(bots?.[profile.id]?.systemInstruction || '').trim();
+
+      if (!systemInstruction) {
+        res.status(400).json({
+          ok: false,
+          error: `${profile.name} system prompt is required.`,
+        });
+        return;
+      }
+
+      if (systemInstruction.length > 4000) {
+        res.status(400).json({
+          ok: false,
+          error: `${profile.name} system prompt must be 4000 characters or fewer.`,
+        });
+        return;
+      }
+
+      botPatch[profile.id] = { systemInstruction };
     }
 
-    const settings = await conversationStore.updateBotSettings({ systemInstruction });
+    const settings = await conversationStore.updateBotSettings({ bots: botPatch });
 
     broadcastAdminEvent('settings-updated', {
       settings,
@@ -492,6 +523,7 @@ async function handleCustomerText({ conversationId, userText, source, reply }) {
   }
 
   const botSettings = await getEffectiveBotSettings();
+  const selectedBot = getSelectedBot(botSettings, conversationSettings.botId);
   let assistantText;
   let usage = null;
 
@@ -500,9 +532,10 @@ async function handleCustomerText({ conversationId, userText, source, reply }) {
       history,
       userText,
       buildLlmSystemInstruction(
-        botSettings.systemInstruction,
+        selectedBot.systemInstruction,
         conversationId,
         conversationSettings,
+        selectedBot.profile.usesCustomerContext,
       ),
     );
     assistantText = aiReply.text;
@@ -517,6 +550,8 @@ async function handleCustomerText({ conversationId, userText, source, reply }) {
     text: assistantText,
     at: new Date().toISOString(),
     from: 'ai',
+    botId: selectedBot.profile.id,
+    botName: selectedBot.profile.name,
     ...(usage ? { usage } : {}),
   };
   const historyWithAssistantMessage = await conversationStore.append(
@@ -645,7 +680,16 @@ function hasSettingsPatchChanges(settings, patch) {
   return Object.entries(patch).some(([key, value]) => settings[key] !== value);
 }
 
-function buildLlmSystemInstruction(systemInstruction, conversationId, settings) {
+function buildLlmSystemInstruction(
+  systemInstruction,
+  conversationId,
+  settings,
+  usesCustomerContext,
+) {
+  if (!usesCustomerContext) {
+    return systemInstruction;
+  }
+
   const channel = settings.channel || getConversationChannel(conversationId);
   const lines = [
     systemInstruction,
@@ -769,8 +813,30 @@ async function getEffectiveBotSettings() {
   const settings = await conversationStore.getBotSettings();
 
   return {
-    systemInstruction: settings.systemInstruction || config.defaultBotSystemInstruction,
+    bots: Object.fromEntries(
+      BOT_PROFILES.map((profile) => [
+        profile.id,
+        {
+          systemInstruction:
+            settings.bots?.[profile.id]?.systemInstruction || config.defaultBotSystemInstruction,
+        },
+      ]),
+    ),
   };
+}
+
+function getSelectedBot(botSettings, botId) {
+  const profile = BOT_PROFILES.find((item) => item.id === botId) || BOT_PROFILES[0];
+
+  return {
+    profile,
+    systemInstruction:
+      botSettings.bots?.[profile.id]?.systemInstruction || config.defaultBotSystemInstruction,
+  };
+}
+
+function isSupportedBotId(botId) {
+  return BOT_PROFILES.some((profile) => profile.id === botId);
 }
 
 function truncateLineText(text) {

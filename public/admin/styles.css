@@ -581,6 +581,16 @@ p {
   color: #516074;
 }
 
+.bot-badge.baseline {
+  background: #fff4e8;
+  color: #bf5613;
+}
+
+.bot-badge.tagAware {
+  background: #e8f7ee;
+  color: #087b3a;
+}
+
 .mini-toggle {
   min-height: 24px;
   border-radius: 999px;
@@ -794,7 +804,7 @@ p {
 
 .customer-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -874,6 +884,35 @@ p {
 
 .ai-toggle input:checked + .toggle-track::after {
   transform: translateX(20px);
+}
+
+.bot-select-wrap {
+  display: grid;
+  width: min(100%, 230px);
+  gap: 8px;
+  margin-top: 14px;
+  color: #98a2b4;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.bot-select-wrap select {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  outline: 0;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.bot-select-wrap select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .side-metrics {

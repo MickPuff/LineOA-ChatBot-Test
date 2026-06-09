@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Roastline Coffee Admin</title>
-    <link rel="stylesheet" href="/admin/styles.css?v=channel-icon">
+    <link rel="stylesheet" href="/admin/styles.css?v=bot-profiles">
   </head>
   <body>
     <div class="app-shell">
@@ -106,7 +106,7 @@
             </div>
             <div class="chat-status">
               <span class="online-dot"></span>
-              <span>AI - Coffee Seller</span>
+              <span id="chat-bot-status">AI - Coffee Seller</span>
             </div>
           </header>
 
@@ -141,6 +141,13 @@
               <input id="detail-ai-toggle" type="checkbox" disabled>
               <span class="toggle-track" aria-hidden="true"></span>
               <strong id="detail-ai-label">AI enabled</strong>
+            </label>
+            <label class="bot-select-wrap">
+              <span>Active bot</span>
+              <select id="detail-bot-select" disabled>
+                <option value="baseline">Baseline Bot</option>
+                <option value="tagAware">Tag-Aware Bot</option>
+              </select>
             </label>
           </section>
 
@@ -182,15 +189,6 @@
             </div>
           </section>
 
-          <section class="note-card">
-            <div class="note-label">AI status is per customer</div>
-            <p>## Customer Summary</p>
-            <p>- Coffee buyer from selected channel</p>
-            <p>- Full transcript stored in Redis</p>
-            <p>- Tags are sent to Gemini as customer context</p>
-            <p>- Disable AI when admin should take over</p>
-          </section>
-
           <div class="panel-actions">
             <button id="copy-id-button" type="button" disabled>Copy ID</button>
             <button id="export-button" type="button" disabled>Export JSON</button>
@@ -209,12 +207,18 @@
 
         <section class="settings-body">
           <div class="settings-section">
-            <h3>System Prompt</h3>
-            <p>Control how the coffee seller replies to LINE customers.</p>
-            <textarea id="system-prompt-input" rows="10" maxlength="4000"></textarea>
+            <h3>Baseline Bot Prompt</h3>
+            <p>Uses only this system prompt plus recent customer and AI messages.</p>
+            <textarea id="baseline-system-prompt-input" rows="10" maxlength="4000"></textarea>
+          </div>
+
+          <div class="settings-section">
+            <h3>Tag-Aware Bot Prompt</h3>
+            <p>Uses this system prompt plus channel, display name, and manually assigned customer tags.</p>
+            <textarea id="tag-aware-system-prompt-input" rows="10" maxlength="4000"></textarea>
             <div class="settings-actions">
-              <button id="save-settings-button" type="button">Save prompt</button>
-              <button id="reset-prompt-button" type="button">Use default</button>
+              <button id="save-settings-button" type="button">Save prompts</button>
+              <button id="reset-prompt-button" type="button">Use defaults</button>
             </div>
           </div>
 
@@ -244,6 +248,6 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/admin/app.js?v=channel-icon" type="module"></script>
+    <script src="/admin/app.js?v=bot-profiles" type="module"></script>
   </body>
 </html>

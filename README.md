@@ -1,6 +1,6 @@
 # LINE OA Gemini Chatbot
 
-A small Node.js service that connects a LINE Official Account and a test website chat page to Gemini. It replies like a coffee seller, stores conversation logs per customer in Redis, and sends only recent context plus admin tags to Gemini.
+A small Node.js service that connects a LINE Official Account and a test website chat page to Gemini. It replies like a coffee seller, stores conversation logs per customer in Redis, and supports baseline versus tag-aware bot profiles for comparison tests.
 
 ## What It Does
 
@@ -8,12 +8,12 @@ A small Node.js service that connects a LINE Official Account and a test website
 - Provides a public test customer page at `GET /testuser`
 - Validates LINE signatures with the official LINE Node SDK
 - Caches LINE customer display names and profile pictures in Redis after incoming messages
-- Sends recent conversation context, channel, display name, and admin tags to Gemini
+- Sends recent conversation messages to Gemini, with optional channel, display name, and admin tag context depending on the selected bot profile
 - Stores full conversation logs in remote Upstash Redis
 - Skips duplicate LINE redeliveries by tracking `webhookEventId` in Redis
 - Provides a password-protected admin page at `GET /admin`
-- Lets admins edit the bot system prompt from `/admin/settings`; the prompt is saved in Redis
-- Lets admins disable AI replies and add customer tags for individual conversations
+- Lets admins edit separate baseline and tag-aware bot system prompts from `/admin/settings`; prompts are saved in Redis
+- Lets admins disable AI replies, choose a bot profile, and add customer tags for individual conversations
 - Streams live inbox updates to the admin page with server-sent events, avoiding timer-based Redis polling
 - Streams website test-chat updates with server-sent events
 - Shows Gemini input/output token usage under AI messages when Gemini returns usage metadata
@@ -66,7 +66,7 @@ Use this path if you do not want the bot running on your machine.
    https://your-render-service.onrender.com/admin/settings
    ```
 
-   Save the system prompt there. It is stored in Redis, so you do not need to edit Render environment variables for prompt changes.
+   Save the baseline and tag-aware system prompts there. They are stored in Redis, so you do not need to edit Render environment variables for prompt changes.
 
 9. To test the website channel, open:
 
@@ -159,7 +159,12 @@ LINE requires an HTTPS webhook URL. Local development usually needs a tunnel suc
 
 If you set `STORAGE_PROVIDER=memory`, nothing is written locally, but the bot forgets context whenever the Node process restarts. Use Upstash for persistent non-local memory.
 
-The admin page reads conversation logs, customer tags, AI handoff settings, and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
+The admin page reads conversation logs, customer tags, selected bot profiles, AI handoff settings, and runtime settings from Redis. Conversations are indexed automatically when new messages are saved, and older conversation keys are discovered with Redis `SCAN`.
+
+Each conversation can use one of two bot profiles:
+
+- `baseline`: sends only the selected system prompt plus recent conversation messages to Gemini
+- `tagAware`: sends the selected system prompt, recent conversation messages, channel, display name, and admin tags to Gemini
 
 LINE profile names and pictures are fetched with the existing `LINE_CHANNEL_ACCESS_TOKEN`, then cached in each conversation's Redis settings. They refresh after about 24 hours when that customer sends another message. Existing LINE conversations without cached profile data will keep showing the fallback avatar until the customer messages the bot again.
 
@@ -176,7 +181,7 @@ Conversation IDs are channel-prefixed:
 Redis keys include:
 
 - `lineoa:conversation:<conversationId>` for full transcripts
-- `lineoa:conversation-settings:<conversationId>` for AI enabled state, channel, display name, profile picture URL, and tags
+- `lineoa:conversation-settings:<conversationId>` for AI enabled state, selected bot profile, channel, display name, profile picture URL, and tags
 - `lineoa:conversation-index` for conversation discovery
-- `lineoa:bot-settings` for the runtime system prompt
+- `lineoa:bot-settings` for runtime system prompts for the baseline and tag-aware bot profiles
 - `lineoa:webhook-event:<eventId>` for temporary LINE duplicate detection

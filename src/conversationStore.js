@@ -4,6 +4,23 @@ const CONVERSATION_KEY_PREFIX = 'lineoa:conversation:';
 const CONVERSATION_INDEX_KEY = 'lineoa:conversation-index';
 const CONVERSATION_SETTINGS_KEY_PREFIX = 'lineoa:conversation-settings:';
 const BOT_SETTINGS_KEY = 'lineoa:bot-settings';
+export const BASELINE_BOT_ID = 'baseline';
+export const TAG_AWARE_BOT_ID = 'tagAware';
+export const DEFAULT_BOT_ID = TAG_AWARE_BOT_ID;
+export const BOT_PROFILES = [
+  {
+    id: BASELINE_BOT_ID,
+    name: 'Baseline Bot',
+    description: 'Uses only the system prompt and recent conversation messages.',
+    usesCustomerContext: false,
+  },
+  {
+    id: TAG_AWARE_BOT_ID,
+    name: 'Tag-Aware Bot',
+    description: 'Adds channel, display name, and admin tags as customer context.',
+    usesCustomerContext: true,
+  },
+];
 
 export function createConversationStore(config) {
   if (config.storageProvider === 'memory') {
@@ -275,6 +292,7 @@ export function summarizeConversation(conversationId, history, settings = {}) {
     lastText: lastMessage?.text || '',
     title: normalizedSettings.displayName || latestUserMessage?.text || conversationId,
     aiEnabled: normalizedSettings.aiEnabled,
+    botId: normalizedSettings.botId,
     profilePictureUrl: normalizedSettings.profilePictureUrl,
     profileUpdatedAt: normalizedSettings.profileUpdatedAt,
     tags: normalizedSettings.tags,
@@ -286,6 +304,7 @@ function normalizeConversationSettings(settings) {
 
   return {
     aiEnabled: normalized.aiEnabled !== false,
+    botId: normalizeBotId(normalized.botId),
     channel: normalizeChannel(normalized.channel),
     displayName:
       typeof normalized.displayName === 'string'
@@ -305,13 +324,21 @@ function normalizeConversationSettings(settings) {
 
 function normalizeBotSettings(settings) {
   const normalized = parseStoredObject(settings);
-  const systemInstruction =
-    typeof normalized.systemInstruction === 'string'
-      ? normalized.systemInstruction.trim()
-      : '';
+  const legacySystemInstruction =
+    typeof normalized.systemInstruction === 'string' ? normalized.systemInstruction.trim() : '';
+  const normalizedBots = parseStoredObject(normalized.bots);
 
   return {
-    systemInstruction,
+    bots: Object.fromEntries(
+      BOT_PROFILES.map((profile) => [
+        profile.id,
+        {
+          systemInstruction: normalizeSystemInstruction(
+            normalizedBots?.[profile.id]?.systemInstruction || legacySystemInstruction,
+          ),
+        },
+      ]),
+    ),
   };
 }
 
@@ -393,6 +420,14 @@ function normalizeChannel(channel) {
   }
 
   return '';
+}
+
+function normalizeBotId(botId) {
+  return BOT_PROFILES.some((profile) => profile.id === botId) ? botId : DEFAULT_BOT_ID;
+}
+
+function normalizeSystemInstruction(systemInstruction) {
+  return typeof systemInstruction === 'string' ? systemInstruction.trim().slice(0, 4000) : '';
 }
 
 function normalizeTags(tags) {

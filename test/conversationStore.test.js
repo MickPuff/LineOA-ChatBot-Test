@@ -66,6 +66,7 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'new reply',
       title: 'new chat',
       aiEnabled: true,
+      botId: 'tagAware',
       profilePictureUrl: '',
       profileUpdatedAt: '',
       tags: [],
@@ -82,6 +83,7 @@ test('lists conversation summaries newest first', async () => {
       lastText: 'old chat',
       title: 'old chat',
       aiEnabled: true,
+      botId: 'tagAware',
       profilePictureUrl: '',
       profileUpdatedAt: '',
       tags: [],
@@ -94,6 +96,7 @@ test('stores conversation AI settings and tags', async () => {
 
   assert.deepEqual(await store.getConversationSettings('user:1'), {
     aiEnabled: true,
+    botId: 'tagAware',
     channel: '',
     displayName: '',
     profilePictureUrl: '',
@@ -103,6 +106,7 @@ test('stores conversation AI settings and tags', async () => {
 
   await store.updateConversationSettings('user:1', {
     aiEnabled: false,
+    botId: 'baseline',
     channel: 'website',
     displayName: 'Mick',
     profilePictureUrl: 'https://profile.line-scdn.net/mick',
@@ -112,6 +116,7 @@ test('stores conversation AI settings and tags', async () => {
 
   assert.deepEqual(await store.getConversationSettings('user:1'), {
     aiEnabled: false,
+    botId: 'baseline',
     channel: 'website',
     displayName: 'Mick',
     profilePictureUrl: 'https://profile.line-scdn.net/mick',
@@ -123,11 +128,39 @@ test('stores conversation AI settings and tags', async () => {
 test('stores bot settings', async () => {
   const store = new MemoryConversationStore(4);
 
-  assert.deepEqual(await store.getBotSettings(), { systemInstruction: '' });
+  assert.deepEqual(await store.getBotSettings(), {
+    bots: {
+      baseline: { systemInstruction: '' },
+      tagAware: { systemInstruction: '' },
+    },
+  });
 
-  await store.updateBotSettings({ systemInstruction: 'Sell coffee.' });
+  await store.updateBotSettings({
+    bots: {
+      baseline: { systemInstruction: 'Sell coffee without tags.' },
+      tagAware: { systemInstruction: 'Sell coffee with tags.' },
+    },
+  });
 
-  assert.deepEqual(await store.getBotSettings(), { systemInstruction: 'Sell coffee.' });
+  assert.deepEqual(await store.getBotSettings(), {
+    bots: {
+      baseline: { systemInstruction: 'Sell coffee without tags.' },
+      tagAware: { systemInstruction: 'Sell coffee with tags.' },
+    },
+  });
+});
+
+test('normalizes legacy single bot settings into both bot prompts', async () => {
+  const store = new MemoryConversationStore(4);
+
+  await store.updateBotSettings({ systemInstruction: 'Legacy coffee seller.' });
+
+  assert.deepEqual(await store.getBotSettings(), {
+    bots: {
+      baseline: { systemInstruction: 'Legacy coffee seller.' },
+      tagAware: { systemInstruction: 'Legacy coffee seller.' },
+    },
+  });
 });
 
 test('clears a conversation', async () => {

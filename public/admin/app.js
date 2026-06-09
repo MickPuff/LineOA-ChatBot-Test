@@ -23,6 +23,7 @@ const elements = {
   title: document.querySelector('#conversation-title'),
   meta: document.querySelector('#conversation-meta'),
   conversationAvatar: document.querySelector('#conversation-avatar'),
+  chatBotStatus: document.querySelector('#chat-bot-status'),
   filterButtons: [...document.querySelectorAll('.queue-tabs button[data-filter]')],
   navButtons: [...document.querySelectorAll('.nav-item')],
   adminReplyInput: document.querySelector('#admin-reply-input'),
@@ -31,6 +32,7 @@ const elements = {
   exportButton: document.querySelector('#export-button'),
   detailAiToggle: document.querySelector('#detail-ai-toggle'),
   detailAiLabel: document.querySelector('#detail-ai-label'),
+  detailBotSelect: document.querySelector('#detail-bot-select'),
   toast: document.querySelector('#toast'),
   pages: [...document.querySelectorAll('.page[data-page]')],
   metricConversations: document.querySelector('#metric-conversations'),
@@ -48,7 +50,8 @@ const elements = {
   detailTags: document.querySelector('#detail-tags'),
   tagInput: document.querySelector('#tag-input'),
   saveTagsButton: document.querySelector('#save-tags-button'),
-  systemPromptInput: document.querySelector('#system-prompt-input'),
+  baselineSystemPromptInput: document.querySelector('#baseline-system-prompt-input'),
+  tagAwareSystemPromptInput: document.querySelector('#tag-aware-system-prompt-input'),
   saveSettingsButton: document.querySelector('#save-settings-button'),
   resetPromptButton: document.querySelector('#reset-prompt-button'),
   settingsModel: document.querySelector('#settings-model'),
@@ -73,6 +76,11 @@ elements.exportButton.addEventListener('click', () => exportSelectedConversation
 elements.detailAiToggle.addEventListener('change', () => {
   if (state.selectedConversationId) {
     updateConversationAi(state.selectedConversationId, elements.detailAiToggle.checked);
+  }
+});
+elements.detailBotSelect.addEventListener('change', () => {
+  if (state.selectedConversationId) {
+    updateConversationBot(state.selectedConversationId, elements.detailBotSelect.value);
   }
 });
 elements.tagInput.addEventListener('keydown', (event) => {
@@ -366,8 +374,12 @@ function renderConversationList() {
       updateConversationAi(conversation.conversationId, conversation.aiEnabled === false);
     });
 
+    const botBadge = document.createElement('span');
+    botBadge.className = `badge bot-badge ${getBotId(conversation)}`;
+    botBadge.textContent = getBotLabel(conversation.botId);
+
     topRow.append(title, time);
-    tags.append(dot, badge, aiButton);
+    tags.append(dot, badge, aiButton, botBadge);
 
     for (const tag of conversation.tags || []) {
       const tagBadge = document.createElement('span');
@@ -501,6 +513,7 @@ function clearSelection() {
   elements.detailAssistantCount.textContent = '-';
   elements.detailLastAt.textContent = '-';
   elements.detailChannelTag.textContent = 'Coffee lead';
+  elements.chatBotStatus.textContent = 'AI - Coffee Seller';
   setAvatar(elements.conversationAvatar, null);
   setAvatar(elements.detailAvatar, null);
   elements.detailTags.replaceChildren();
@@ -510,6 +523,8 @@ function clearSelection() {
   elements.detailAiToggle.checked = true;
   elements.detailAiToggle.disabled = true;
   elements.detailAiLabel.textContent = 'AI enabled';
+  elements.detailBotSelect.value = 'tagAware';
+  elements.detailBotSelect.disabled = true;
   updateComposerState();
   renderConversationList();
 }
@@ -623,14 +638,53 @@ async function updateConversationAi(conversationId, aiEnabled) {
   }
 }
 
+async function updateConversationBot(conversationId, botId) {
+  try {
+    const data = await fetchJson(`/api/admin/conversations/${encodeURIComponent(conversationId)}/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ botId }),
+    });
+
+    state.conversations = state.conversations.map((conversation) =>
+      conversation.conversationId === conversationId
+        ? { ...conversation, botId: data.settings.botId }
+        : conversation,
+    );
+
+    filterConversations();
+
+    if (state.selectedConversationId === conversationId) {
+      state.selectedSettings = {
+        ...state.selectedSettings,
+        botId: data.settings.botId,
+      };
+      updateSelectedConversationDetails(
+        state.conversations.find((conversation) => conversation.conversationId === conversationId),
+      );
+    }
+
+    showToast(`${getBotLabel(data.settings.botId)} selected for this customer.`);
+  } catch (error) {
+    showToast(error.message || 'Could not update selected bot.');
+    updateSelectedConversationDetails(getSelectedSummary());
+  }
+}
+
 function updateSelectedConversationDetails(summary) {
   const aiEnabled = summary?.aiEnabled !== false;
   const channel = summary?.channel || getChannelFromConversationId(summary?.conversationId || state.selectedConversationId);
   const tags = state.selectedSettings?.tags || summary?.tags || [];
+  const botId = state.selectedSettings?.botId || summary?.botId || 'tagAware';
 
   elements.detailAiToggle.disabled = !state.selectedConversationId;
   elements.detailAiToggle.checked = aiEnabled;
   elements.detailAiLabel.textContent = aiEnabled ? 'AI enabled' : 'AI disabled';
+  elements.detailBotSelect.disabled = !state.selectedConversationId;
+  elements.detailBotSelect.value = getBotId({ botId });
+  elements.chatBotStatus.textContent = `AI - ${getBotLabel(botId)}`;
   elements.detailChannelTag.textContent = getChannelLabel(channel);
   elements.tagInput.disabled = !state.selectedConversationId;
   elements.saveTagsButton.disabled = !state.selectedConversationId;
@@ -726,7 +780,10 @@ async function loadSettings() {
   try {
     const settings = await fetchJson('/api/admin/settings');
     state.settings = settings;
-    elements.systemPromptInput.value = settings.systemInstruction || '';
+    elements.baselineSystemPromptInput.value =
+      settings.bots?.baseline?.systemInstruction || settings.defaultSystemInstruction || '';
+    elements.tagAwareSystemPromptInput.value =
+      settings.bots?.tagAware?.systemInstruction || settings.defaultSystemInstruction || '';
     elements.settingsModel.textContent = settings.geminiModel || '-';
     elements.settingsStorage.textContent = settings.storageProvider || '-';
     elements.settingsContext.textContent = `${settings.maxContextMessages || '-'} recent messages`;
@@ -737,10 +794,11 @@ async function loadSettings() {
 }
 
 async function saveBotSettings() {
-  const systemInstruction = elements.systemPromptInput.value.trim();
+  const baselineSystemInstruction = elements.baselineSystemPromptInput.value.trim();
+  const tagAwareSystemInstruction = elements.tagAwareSystemPromptInput.value.trim();
 
-  if (!systemInstruction) {
-    showToast('System prompt is required.');
+  if (!baselineSystemInstruction || !tagAwareSystemInstruction) {
+    showToast('Both bot prompts are required.');
     return;
   }
 
@@ -752,15 +810,21 @@ async function saveBotSettings() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ systemInstruction }),
+      body: JSON.stringify({
+        bots: {
+          baseline: { systemInstruction: baselineSystemInstruction },
+          tagAware: { systemInstruction: tagAwareSystemInstruction },
+        },
+      }),
     });
 
     state.settings = {
       ...state.settings,
-      systemInstruction: data.settings.systemInstruction,
+      bots: data.settings.bots,
     };
-    elements.systemPromptInput.value = data.settings.systemInstruction;
-    showToast('Bot prompt saved in Redis.');
+    elements.baselineSystemPromptInput.value = data.settings.bots.baseline.systemInstruction;
+    elements.tagAwareSystemPromptInput.value = data.settings.bots.tagAware.systemInstruction;
+    showToast('Bot prompts saved in Redis.');
   } catch (error) {
     showToast(error.message || 'Could not save settings.');
   } finally {
@@ -773,7 +837,8 @@ async function useDefaultPrompt() {
     await loadSettings();
   }
 
-  elements.systemPromptInput.value = state.settings?.defaultSystemInstruction || '';
+  elements.baselineSystemPromptInput.value = state.settings?.defaultSystemInstruction || '';
+  elements.tagAwareSystemPromptInput.value = state.settings?.defaultSystemInstruction || '';
   await saveBotSettings();
 }
 
@@ -1013,7 +1078,7 @@ function getMessageSenderLabel(message) {
   }
 
   if (message.role === 'assistant') {
-    return 'AI coffee seller';
+    return message.botName || getBotLabel(message.botId);
   }
 
   return message.role || 'unknown';
@@ -1166,6 +1231,18 @@ function getChannelIconLabel(channel = 'unknown') {
   }
 
   return '?';
+}
+
+function getBotId(conversation = {}) {
+  return conversation?.botId === 'baseline' ? 'baseline' : 'tagAware';
+}
+
+function getBotLabel(botId = 'tagAware') {
+  if (botId === 'baseline') {
+    return 'Baseline Bot';
+  }
+
+  return 'Tag-Aware Bot';
 }
 
 function normalizeTags(tags) {
