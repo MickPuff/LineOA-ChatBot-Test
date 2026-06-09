@@ -357,10 +357,6 @@ function renderConversationList() {
     badge.className = `badge unread-badge${unreadCount > 0 ? ' has-unread' : ''}`;
     badge.textContent = unreadCount > 0 ? `${unreadCount} unread` : 'Read';
 
-    const channelBadge = document.createElement('span');
-    channelBadge.className = 'badge channel-badge';
-    channelBadge.textContent = getChannelLabel(conversation.channel);
-
     const aiButton = document.createElement('button');
     aiButton.type = 'button';
     aiButton.className = `mini-toggle${conversation.aiEnabled === false ? ' is-off' : ''}`;
@@ -371,7 +367,7 @@ function renderConversationList() {
     });
 
     topRow.append(title, time);
-    tags.append(dot, badge, channelBadge, aiButton);
+    tags.append(dot, badge, aiButton);
 
     for (const tag of conversation.tags || []) {
       const tagBadge = document.createElement('span');
@@ -1073,10 +1069,12 @@ function setAvatar(avatar, conversation) {
     });
     avatar.classList.add('with-image');
     avatar.append(image);
+    appendChannelIcon(avatar, conversation);
     return;
   }
 
   avatar.textContent = fallback;
+  appendChannelIcon(avatar, conversation);
 }
 
 function getAvatarFallback(displayName) {
@@ -1087,6 +1085,21 @@ function getAvatarFallback(displayName) {
   }
 
   return normalized[0].toUpperCase();
+}
+
+function appendChannelIcon(avatar, conversation) {
+  const channel = getConversationChannel(conversation);
+
+  if (!conversation || channel === 'unknown') {
+    return;
+  }
+
+  const icon = document.createElement('span');
+  icon.className = `channel-icon ${channel}`;
+  icon.textContent = getChannelIconLabel(channel);
+  icon.title = getChannelLabel(channel);
+  icon.setAttribute('aria-label', getChannelLabel(channel));
+  avatar.append(icon);
 }
 
 function getConversationChannel(conversation) {
@@ -1137,6 +1150,22 @@ function getChannelLabel(channel = 'unknown') {
   }
 
   return 'Unknown';
+}
+
+function getChannelIconLabel(channel = 'unknown') {
+  if (channel === 'line') {
+    return 'LINE';
+  }
+
+  if (channel === 'website') {
+    return 'WEB';
+  }
+
+  if (channel === 'fb') {
+    return 'FB';
+  }
+
+  return '?';
 }
 
 function normalizeTags(tags) {
