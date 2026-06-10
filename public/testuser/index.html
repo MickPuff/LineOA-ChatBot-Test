@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Goldline Test Customer</title>
-    <link rel="stylesheet" href="/testuser/styles.css?v=gold-ui">
+    <link rel="stylesheet" href="/testuser/styles.css?v=test-settings">
   </head>
   <body>
     <main class="test-shell">
@@ -38,6 +38,24 @@
           <button id="change-user-button" type="button">Change user</button>
         </header>
 
+        <section class="test-controls" aria-label="Test conversation settings">
+          <label>
+            Responding AI
+            <select id="bot-select">
+              <option value="baseline">Baseline Bot</option>
+              <option value="tagAware">Tag-Aware Bot</option>
+            </select>
+          </label>
+          <div class="tag-settings">
+            <label>
+              Test tags
+              <input id="tag-input" type="text" maxlength="40" placeholder="Add tag, then Enter" autocomplete="off">
+            </label>
+            <div id="tag-list" class="tag-list" aria-live="polite"></div>
+            <button id="save-tags-button" type="button">Save tags</button>
+          </div>
+        </section>
+
         <div id="messages" class="messages" aria-live="polite"></div>
 
         <form id="message-form" class="message-form">
@@ -48,6 +66,6 @@
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/testuser/app.js?v=gold-ui" type="module"></script>
+    <script src="/testuser/app.js?v=test-settings" type="module"></script>
   </body>
 </html>

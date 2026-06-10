@@ -149,6 +149,63 @@ app.post('/api/testuser/messages', async (req, res, next) => {
   }
 });
 
+app.patch('/api/testuser/settings', async (req, res, next) => {
+  try {
+    const userId = req.body?.userId;
+    const displayName = req.body?.displayName;
+    const botId = req.body?.botId;
+    const tags = req.body?.tags;
+    const settingsPatch = {};
+
+    if (!String(userId || '').trim()) {
+      res.status(400).json({ ok: false, error: 'User ID is required.' });
+      return;
+    }
+
+    if (botId !== undefined) {
+      if (!isSupportedBotId(botId)) {
+        res.status(400).json({ ok: false, error: 'botId must be baseline or tagAware.' });
+        return;
+      }
+
+      settingsPatch.botId = botId;
+    }
+
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        res.status(400).json({ ok: false, error: 'tags must be an array.' });
+        return;
+      }
+
+      settingsPatch.tags = tags;
+    }
+
+    if (Object.keys(settingsPatch).length === 0) {
+      res.status(400).json({ ok: false, error: 'No supported settings were provided.' });
+      return;
+    }
+
+    const conversationId = getWebsiteConversationId(userId);
+    await ensureWebsiteConversationSettings(conversationId, { displayName });
+    const settings = await conversationStore.updateConversationSettings(conversationId, settingsPatch);
+
+    broadcastAdminEvent('conversation-settings-updated', {
+      conversationId,
+      settings,
+      at: new Date().toISOString(),
+    });
+    broadcastTestUserEvent(conversationId, 'settings-updated', {
+      conversationId,
+      settings,
+      at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true, conversationId, settings });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get(/^\/admin\/?$/, requireAdmin, (_req, res) => {
   res.sendFile(path.join(adminPublicPath, 'index.html'));
 });
@@ -267,6 +324,11 @@ app.patch('/api/admin/conversations/:conversationId/settings', requireAdmin, asy
     const settings = await conversationStore.updateConversationSettings(conversationId, settingsPatch);
 
     broadcastAdminEvent('conversation-settings-updated', {
+      conversationId,
+      settings,
+      at: new Date().toISOString(),
+    });
+    broadcastTestUserEvent(conversationId, 'settings-updated', {
       conversationId,
       settings,
       at: new Date().toISOString(),

@@ -5,6 +5,7 @@ const state = {
   displayName: '',
   conversationId: '',
   messages: [],
+  settings: null,
   eventSource: null,
 };
 
@@ -16,6 +17,10 @@ const elements = {
   userIdInput: document.querySelector('#user-id-input'),
   conversationLabel: document.querySelector('#conversation-label'),
   changeUserButton: document.querySelector('#change-user-button'),
+  botSelect: document.querySelector('#bot-select'),
+  tagInput: document.querySelector('#tag-input'),
+  tagList: document.querySelector('#tag-list'),
+  saveTagsButton: document.querySelector('#save-tags-button'),
   messages: document.querySelector('#messages'),
   messageForm: document.querySelector('#message-form'),
   messageInput: document.querySelector('#message-input'),
@@ -39,6 +44,7 @@ elements.changeUserButton.addEventListener('click', () => {
   state.displayName = '';
   state.conversationId = '';
   state.messages = [];
+  state.settings = null;
   window.localStorage.removeItem(STORAGE_KEY);
   elements.chatPanel.hidden = true;
   elements.identityPanel.hidden = false;
@@ -49,6 +55,17 @@ elements.messageForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   await sendMessage();
 });
+elements.botSelect.addEventListener('change', () => updateTestSettings({
+  botId: elements.botSelect.value,
+}));
+elements.tagInput.addEventListener('keydown', async (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addTagFromInput();
+    await saveTags();
+  }
+});
+elements.saveTagsButton.addEventListener('click', () => saveTags());
 
 async function startChat({ displayName, userId }) {
   if (!displayName || !userId) {
@@ -77,7 +94,9 @@ async function loadMessages() {
     const data = await fetchJson(`/api/testuser/messages?${params}`);
 
     state.conversationId = data.conversationId;
+    state.settings = data.settings || null;
     state.messages = data.messages || [];
+    renderSettings();
     renderMessages();
   } catch (error) {
     showToast(error.message || 'Could not load chat history.');
@@ -106,6 +125,17 @@ function connectEvents() {
   eventSource.addEventListener('conversation-cleared', () => {
     state.messages = [];
     renderMessages();
+  });
+
+  eventSource.addEventListener('settings-updated', (event) => {
+    const payload = parseEventData(event);
+
+    if (!payload?.settings || payload.conversationId !== state.conversationId) {
+      return;
+    }
+
+    state.settings = payload.settings;
+    renderSettings();
   });
 
   eventSource.addEventListener('error', () => {
@@ -194,6 +224,97 @@ function renderMessages() {
   });
 }
 
+function renderSettings() {
+  const botId = getBotId(state.settings?.botId);
+  const tags = state.settings?.tags || [];
+
+  elements.botSelect.value = botId;
+  elements.tagList.replaceChildren();
+
+  if (tags.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'tag-empty';
+    empty.textContent = 'No test tags';
+    elements.tagList.append(empty);
+    return;
+  }
+
+  for (const tag of tags) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'tag-chip';
+    chip.textContent = `${tag} x`;
+    chip.title = `Remove ${tag}`;
+    chip.addEventListener('click', async () => {
+      state.settings = {
+        ...state.settings,
+        tags: (state.settings?.tags || []).filter((item) => item !== tag),
+      };
+      renderSettings();
+      await saveTags();
+    });
+    elements.tagList.append(chip);
+  }
+}
+
+function addTagFromInput() {
+  const tag = elements.tagInput.value.trim();
+
+  if (!tag) {
+    return;
+  }
+
+  state.settings = {
+    ...state.settings,
+    tags: normalizeTags([...(state.settings?.tags || []), tag]),
+  };
+  elements.tagInput.value = '';
+  renderSettings();
+}
+
+async function saveTags() {
+  addTagFromInput();
+  await updateTestSettings({
+    tags: state.settings?.tags || [],
+  });
+}
+
+async function updateTestSettings(patch) {
+  if (!state.userId) {
+    return;
+  }
+
+  elements.botSelect.disabled = true;
+  elements.tagInput.disabled = true;
+  elements.saveTagsButton.disabled = true;
+
+  try {
+    const data = await fetchJson('/api/testuser/settings', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: state.userId,
+        displayName: state.displayName,
+        ...patch,
+      }),
+    });
+
+    state.conversationId = data.conversationId || state.conversationId;
+    state.settings = data.settings || state.settings;
+    renderSettings();
+    showToast('Test settings saved.');
+  } catch (error) {
+    showToast(error.message || 'Could not save test settings.');
+    await loadMessages();
+  } finally {
+    elements.botSelect.disabled = false;
+    elements.tagInput.disabled = false;
+    elements.saveTagsButton.disabled = false;
+  }
+}
+
 function createMessageNode(message) {
   const wrapper = document.createElement('article');
   wrapper.className = `message ${message.role === 'user' ? 'user' : 'assistant'}`;
@@ -242,7 +363,11 @@ function createPerformanceWidget(usage) {
 }
 
 function getSenderLabel(message) {
-  return message.from === 'admin' ? 'Admin' : 'AI gold seller';
+  if (message.from === 'admin') {
+    return 'Admin';
+  }
+
+  return message.botName || getBotLabel(message.botId);
 }
 
 async function fetchJson(url, options = {}) {
@@ -301,6 +426,25 @@ function normalizeUserId(userId) {
     .replace(/[^a-zA-Z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'anonymous';
+}
+
+function getBotId(botId = 'tagAware') {
+  return botId === 'baseline' ? 'baseline' : 'tagAware';
+}
+
+function getBotLabel(botId = 'tagAware') {
+  return getBotId(botId) === 'baseline' ? 'Baseline Bot' : 'Tag-Aware Bot';
+}
+
+function normalizeTags(tags) {
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean)
+        .map((tag) => tag.slice(0, 40)),
+    ),
+  ).slice(0, 12);
 }
 
 function formatDate(value) {
